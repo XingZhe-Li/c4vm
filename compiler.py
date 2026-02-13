@@ -121,7 +121,7 @@ def c4vm_c_lexer(src: str) -> list[Token]:
     token_specs = [
         ('NUM',     r'\d+'),                   
         ('STR',     r'"(.*?(?<!\\))"'),        
-        ('KEYWORD', r'\b(int|char|long|if|else|while|return|void|sizeof)\b'),
+        ('KEYWORD', r'\b(char|long|if|else|while|return|void|sizeof)\b'),
         ('ID',      r'[a-zA-Z_][a-zA-Z0-9_]*'),
         ('OP',      r'==|!=|<=|>=|&&|\|\||[+\-*/%&|^=<>!~(){}\[\];,]'),
         ('NEWLINE', r'\n'),                    
@@ -171,7 +171,7 @@ def c4vm_c_compile(src_entry):
         sys.exit(1)
     src = c4vm_c_preprocess(src,src_path_root)
     tokens = c4vm_c_lexer(src)
-    print(tokens)
+
 
 def c4vm_pack(program_bytes,space: int):
     return space.to_bytes(8,'little') + program_bytes

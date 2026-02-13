@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// #define C4VM_DEBUG
+#define C4VM_DEBUG
 // #define C4VM_VERBOSE
 
 struct c4vm {
@@ -22,7 +22,7 @@ enum OPCODES {
 static int OPCODE_LEN = sizeof(enum OPCODES);
 
 long long run(struct c4vm* vm) {
-    for (;;) {
+    while (1) {
         long long opcode = vm->base[vm->pc++];
 #ifdef C4VM_VERBOSE
         if (opcode < OPCODE_END && opcode >= 0) {
@@ -158,7 +158,63 @@ long long run(struct c4vm* vm) {
     }
 }
 
-int main() {
+void load(char* filename) {
+    long long fd = open(filename,O_RDONLY);
+    if (fd == -1) {
+        printf("load failed");
+        exit(1);
+    }
+
+    long long size = 0;
+    if (read(fd, &size, sizeof(long long)) != sizeof(long long)) {
+        printf("Read size failed\n");
+        exit(1);
+    }
+    
+    long long* base = malloc(size);
+    if (!base) {
+        printf("Malloc failed\n");
+        exit(1);
+    }
+
+    read(fd,base,size);
+    close(fd);
+
+    struct c4vm vm = {
+        .bp   = size / sizeof(long long),
+        .sp   = size / sizeof(long long),
+        .pc   = 0,
+        .reg  = 0,
+        .base = base,
+    };
+
+    run(&vm);
+}
+
+void make(long long* base,long long size,long long space,char* filename) {
+    long long fd = open(filename,O_WRONLY | O_CREAT | O_TRUNC,0777);
+    if (fd == -1) {
+        printf("failed when creating file");
+        exit(1);
+    }
+
+    if (write(fd, &space, sizeof(long long)) != sizeof(long long)) {
+        printf("failed when writing header\n");
+        close(fd);
+        exit(1);
+    }
+
+    if (write(fd, base, size) != size) {
+        printf("failed when writing payload\n");
+        close(fd);
+        exit(1);
+    }
+
+    close(fd);
+    printf("Successfully created image: %s (%lld bytes written)\n", filename, size + 8);
+}
+
+void hi_demo() {
     long long text[4096] = {
         IMM,0,PSH,
         IMM,750245352958211171,PSH,
@@ -176,6 +232,21 @@ int main() {
         .base = text,
     };
     run(&vm);
+}
+
+int main() {
+
+    long long text[] = {
+        IMM,0,PSH,
+        IMM,750245352958211171,PSH,
+        IMM,8 * (256 - 2),PSH,
+        PRTF,ADJ,1,
+        IMM,0,PSH,
+        EXIT
+    };
+
+    make(text,sizeof(text),2048,"output.image");
+    load("output.image");
 
     return 0;
 }
