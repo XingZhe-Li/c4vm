@@ -1,6 +1,7 @@
 import re
 import os
 import sys
+from dataclasses import dataclass
 
 def c4vm_c_preprocess_remove_comment(src: str) -> str:
     idx = 0 ; out = []
@@ -109,6 +110,52 @@ def c4vm_c_preprocess(src: str,src_path_root: str):
     src = c4vm_c_preprocess_include(src,src_path_root)
     src = c4vm_c_preprocess_defines(src)
     return src
+    
+@dataclass
+class Token:
+    type: str   # KEYWORD, ID, NUM, STR, OP
+    value: str
+    line: int
+
+def c4vm_c_lexer(src: str) -> list[Token]:
+    token_specs = [
+        ('NUM',     r'\d+'),                   
+        ('STR',     r'"(.*?(?<!\\))"'),        
+        ('KEYWORD', r'\b(int|char|long|if|else|while|return|void|sizeof)\b'),
+        ('ID',      r'[a-zA-Z_][a-zA-Z0-9_]*'),
+        ('OP',      r'==|!=|<=|>=|&&|\|\||[+\-*/%&|^=<>!~(){}\[\];,]'),
+        ('NEWLINE', r'\n'),                    
+        ('SKIP',    r'[ \t\r]+'),             
+        ('MISMATCH',r'.'),                     
+    ]
+
+    tok_regex = '|'.join('(?P<%s>%s)' % pair for pair in token_specs)
+    line_num = 1
+    tokens = []
+
+    for mo in re.finditer(tok_regex, src):
+        kind = mo.lastgroup
+        value = mo.group()
+        
+        if kind == 'NUM':
+            tokens.append(Token('NUM', value, line_num))
+        elif kind == 'STR':
+            tokens.append(Token('STR', value[1:-1], line_num))
+        elif kind == 'KEYWORD':
+            tokens.append(Token('KEYWORD', value, line_num))
+        elif kind == 'ID':
+            tokens.append(Token('ID', value, line_num))
+        elif kind == 'OP':
+            tokens.append(Token('OP', value, line_num))
+        elif kind == 'NEWLINE':
+            line_num += 1
+        elif kind == 'SKIP':
+            continue
+        elif kind == 'MISMATCH':
+            print(f"[ERRO] Lexer: Unexpected character '{value}' at line {line_num}")
+            sys.exit(1)
+            
+    return tokens
 
 def c4vm_c_compile(src_entry):
     if not os.path.isfile(src_entry):
@@ -123,7 +170,8 @@ def c4vm_c_compile(src_entry):
         print("[ERRO] c4vm_c_compile : failed when opening {0}".format(src_entry))
         sys.exit(1)
     src = c4vm_c_preprocess(src,src_path_root)
-    print(src)
+    tokens = c4vm_c_lexer(src)
+    print(tokens)
 
 def c4vm_pack(program_bytes,space: int):
     return space.to_bytes(8,'little') + program_bytes
