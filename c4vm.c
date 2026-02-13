@@ -158,7 +158,18 @@ long long run(struct c4vm* vm) {
     }
 }
 
-void load(char* filename) {
+long long load_mem(long long* base,long long space) {
+    struct c4vm vm = {
+        .bp   = space / sizeof(long long),
+        .sp   = space / sizeof(long long),
+        .pc   = 0,
+        .reg  = 0,
+        .base = base,
+    };
+    return run(&vm);
+}
+
+long long load(char* filename) {
     long long fd = open(filename,O_RDONLY);
     if (fd == -1) {
         printf("load failed");
@@ -180,15 +191,7 @@ void load(char* filename) {
     read(fd,base,size);
     close(fd);
 
-    struct c4vm vm = {
-        .bp   = size / sizeof(long long),
-        .sp   = size / sizeof(long long),
-        .pc   = 0,
-        .reg  = 0,
-        .base = base,
-    };
-
-    run(&vm);
+    return load_mem(base,size);
 }
 
 void make(long long* base,long long size,long long space,char* filename) {
