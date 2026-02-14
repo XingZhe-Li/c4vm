@@ -19,7 +19,7 @@ enum OPCODES {
     OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,OPCODE_END
 };
 
-static int OPCODE_LEN = sizeof(enum OPCODES);
+int OPCODE_LEN = sizeof(enum OPCODES);
 
 long long run(struct c4vm* vm) {
     while (1) {
