@@ -1,6 +1,6 @@
-#include <stdio.h>
+char x[1];
+int z = 12;
 
-int main(){
-    printf("Hello World");
+int main() {
     return 0;
 }
