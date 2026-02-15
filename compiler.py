@@ -1,7 +1,6 @@
 import os
 import sys
 import lexer
-import common
 import parser
 import codegen
 import preprocess
@@ -33,6 +32,9 @@ def compile(source_path,target_path):
     tokens = preprocess.entry(tokens,cwd)
 
     print([tk.value for tk in tokens])
+
+    # parse
+    ASTRoot = parser.parse(tokens)
 
 if __name__ == '__main__':
     source = "hi.c"

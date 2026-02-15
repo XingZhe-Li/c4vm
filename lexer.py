@@ -155,10 +155,14 @@ def tokenize(src: str) -> list[Token]:
                 # >= <= != == &= +=
                 tokens.append(Token("operator",chr + "=",line_cnt))
                 idx += 1
-            elif chr in "&|+-" and idx < len(src) and src[idx] == chr:
-                # && || ++ --
-                tokens.append(Token("operator",chr * 2,line_cnt))
+            elif chr in "&|+-<>" and idx < len(src) and src[idx] == chr:
+                # && || ++ -- >> <<
                 idx += 1
+                if chr in '<>' and idx < len(src) and src[idx] == '=':
+                    tokens.append(Token("operator",chr * 2 + '=',line_cnt))
+                    idx += 1
+                else:
+                    tokens.append(Token("operator",chr * 2,line_cnt))
             elif chr == '/' and idx < len(src):
                 if src[idx] == '/':
                     while idx < len(src) and src[idx] != '\n':

@@ -6,3 +6,8 @@ class Token:
     tktype : str
     value  : Any
     line   : int
+
+@dataclass
+class ASTNode:
+    nodeType : str
+    children : list[Any]
