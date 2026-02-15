@@ -11,3 +11,4 @@ class Token:
 class ASTNode:
     nodeType : str
     children : list[Any]
+    metas    : tuple[Any]

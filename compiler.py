@@ -31,8 +31,6 @@ def compile(source_path,target_path):
     cwd = os.path.dirname(__file__) # cwd for #include
     tokens = preprocess.entry(tokens,cwd)
 
-    print([tk.value for tk in tokens])
-
     # parse
     ASTRoot = parser.parse(tokens)
 
