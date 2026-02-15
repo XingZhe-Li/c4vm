@@ -25,14 +25,14 @@ def compile(source_path,target_path):
     with open(source_path,'r',encoding='utf-8') as f:
         src = f.read()
     
-    # stage1 tokenize
-    tokens = lexer.stage1_tokenize(src)
+    # tokenize
+    tokens = lexer.tokenize(src)
 
     # preprocess
     cwd = os.path.dirname(__file__) # cwd for #include
     tokens = preprocess.entry(tokens,cwd)
 
-    print(tokens)
+    print([tk.value for tk in tokens])
 
 if __name__ == '__main__':
     source = "hi.c"

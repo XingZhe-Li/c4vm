@@ -1,7 +1,7 @@
 import builtins
 from common import Token
 
-def stage1_tokenize(src: str) -> list[Token]:
+def tokenize(src: str) -> list[Token]:
     # tokenize config
     
     # identifier charset
@@ -204,4 +204,10 @@ def stage1_tokenize(src: str) -> list[Token]:
         else:
             idx += 1
 
-    return tokens
+    # remove newline from token stream
+    swept_tokens = []
+    for tk in tokens:
+        if tk.tktype == "newline":
+            continue
+        swept_tokens.append(tk)
+    return swept_tokens
