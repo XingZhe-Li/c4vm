@@ -163,6 +163,9 @@ def tokenize(src: str) -> list[Token]:
                     idx += 1
                 else:
                     tokens.append(Token("operator",chr * 2,line_cnt))
+            elif chr == '-' and idx < len(src) and src[idx] == '>':
+                idx += 1
+                tokens.append(Token("operator",'->',line_cnt))
             elif chr == '/' and idx < len(src):
                 if src[idx] == '/':
                     while idx < len(src) and src[idx] != '\n':
