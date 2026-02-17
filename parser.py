@@ -549,12 +549,15 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
         while True:
             if match("operator","("):
                 args = []
-                while True:
-                    args.append(expression(idx,tokens,symTable,14))
-                    if not match("operator",","):
-                        break
-                match("operator",")")
-                lhs = ASTNode("call",[lhs,*args],())
+                if match("operator",")"):
+                    lhs = ASTNode("call",[lhs,],())
+                else:
+                    while True:
+                        args.append(expression(idx,tokens,symTable,14))
+                        if not match("operator",","):
+                            break
+                    match("operator",")")
+                    lhs = ASTNode("call",[lhs,*args],())
             elif match("operator","["):
                 lhs = ASTNode("index",[lhs,expression(idx,tokens,symTable)],())
                 match("operator","]")
@@ -569,7 +572,7 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
         return lhs
 
 def statements(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
-    _,match,_,_ = tools(idx,tokens)
+    peek,match,_,_ = tools(idx,tokens)
     symTable = symTable.derive()
     children = []
     rootnode = ASTNode("actions",children,(symTable,))
@@ -578,7 +581,7 @@ def statements(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
         stmt = statement(idx,tokens,symTable)
         if stmt:
             children.append(stmt)
-        if match("operator","}"):
+        if not peek() or peek().tktype == "operator" and peek().value == "}":
             break
     
     return rootnode
