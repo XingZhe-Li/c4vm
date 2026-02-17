@@ -6,7 +6,7 @@ class Ref:
     def __repr__(self):
         return "Ref({0})".format(self.val)
 
-REPR_SYMTABLE = True
+REPR_SYMTABLE = False
 
 class SymTable:
     mapper : dict
@@ -430,7 +430,7 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
         return lhs
 
     if prec >= 7:
-        lhs = expression(idx,tokens,symTable,5)
+        lhs = expression(idx,tokens,symTable,6)
         while True:
             if match("operator","=="):
                 lhs = ASTNode("eq",[lhs,expression(idx,tokens,symTable,6)],())
@@ -600,6 +600,7 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
         cond = expression(idx,tokens,symTable,14)
         match("operator",")")
         iftrue = statement(idx,tokens,symTable)
+        iffalse = None
         if match("identifier","else"):
             iffalse = statement(idx,tokens,symTable)
         if iffalse:
@@ -650,8 +651,6 @@ def program(idx: Ref,tokens: list[Token]) -> ASTNode:
     children = []
     symtable = rootTable()
     this = ASTNode("program",children,(symtable,))
-
-    _,match,_,_ = tools(idx,tokens)
 
     while idx.val < len(tokens):
         dec = declaration(idx,tokens,symtable)
