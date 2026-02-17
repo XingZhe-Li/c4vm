@@ -242,10 +242,243 @@ def parseDeclaration(idx: Ref,tokens: list[Token],symTable: SymTable):
         # function
         ...
 
+def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTNode:
+    _,match,_,_ = tools(idx,tokens)
+    
+    lhs = None
+
+    if prec >= 15:
+        lhs = expression(idx,tokens,symTable,14)
+        while True:
+            if match("operator",","):
+                lhs = ASTNode("comma",[lhs,expression(idx,tokens,symTable,14)],())
+            else:
+                break
+
+    if prec >= 14:
+        lhs = expression(idx,tokens,symTable,13)
+        while True:
+            if match("operator","="):
+                lhs = ASTNode("assign",[lhs,expression(idx,tokens,symTable,13)],())
+            elif match("operator","/="):
+                lhs = ASTNode("assign",[lhs,ASTNode("div",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","*="):
+                lhs = ASTNode("assign",[lhs,ASTNode("mul",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","%="):
+                lhs = ASTNode("assign",[lhs,ASTNode("mod",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","+="):
+                lhs = ASTNode("assign",[lhs,ASTNode("add",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","-="):
+                lhs = ASTNode("assign",[lhs,ASTNode("sub",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","<<="):
+                lhs = ASTNode("assign",[lhs,ASTNode("shl",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator",">>="):
+                lhs = ASTNode("assign",[lhs,ASTNode("shr",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","&="):
+                lhs = ASTNode("assign",[lhs,ASTNode("bitand",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","^="):
+                lhs = ASTNode("assign",[lhs,ASTNode("bitxor",[lhs,expression(idx,tokens,symTable,13)],())],())
+            elif match("operator","|="):
+                lhs = ASTNode("assign",[lhs,ASTNode("bitor",[lhs,expression(idx,tokens,symTable,13)],())],())
+            else:
+                break
+        return lhs
+
+    if prec >= 13:
+        lhs = expression(idx,tokens,symTable,12)
+        while True:
+            if match("operator","?"):
+                true_ret  = expression(idx,tokens,symTable,12)
+                match("operator",":")
+                false_ret = expression(idx,tokens,symTable,12)
+                lhs = ASTNode("cond",[lhs,true_ret,false_ret],())
+            else:
+                break
+        return lhs
+
+    if prec >= 12:
+        lhs = expression(idx,tokens,symTable,11)
+        while True:
+            if match("operator","||"):
+                lhs = ASTNode("or",[lhs,expression(idx,tokens,symTable,11)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 11:
+        lhs = expression(idx,tokens,symTable,10)
+        while True:
+            if match("operator","&&"):
+                lhs = ASTNode("and",[lhs,expression(idx,tokens,symTable,10)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 10:
+        lhs = expression(idx,tokens,symTable,9)
+        while True:
+            if match("operator","|"):
+                lhs = ASTNode("bitor",[lhs,expression(idx,tokens,symTable,9)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 9:
+        lhs = expression(idx,tokens,symTable,8)
+        while True:
+            if match("operator","^"):
+                lhs = ASTNode("bitxor",[lhs,expression(idx,tokens,symTable,8)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 8:
+        lhs = expression(idx,tokens,symTable,7)
+        while True:
+            if match("operator","&"):
+                lhs = ASTNode("bitand",[lhs,expression(idx,tokens,symTable,7)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 7:
+        lhs = expression(idx,tokens,symTable,5)
+        while True:
+            if match("operator","=="):
+                lhs = ASTNode("eq",[lhs,expression(idx,tokens,symTable,6)],())
+            elif match("operator","!="):
+                lhs = ASTNode("ne",[lhs,expression(idx,tokens,symTable,6)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 6:
+        lhs = expression(idx,tokens,symTable,5)
+        while True:
+            if match("operator",">"):
+                lhs = ASTNode("gt",[lhs,expression(idx,tokens,symTable,5)],())
+            elif match("operator",">="):
+                lhs = ASTNode("ge",[lhs,expression(idx,tokens,symTable,5)],())
+            elif match("operator","<"):
+                lhs = ASTNode("lt",[lhs,expression(idx,tokens,symTable,5)],())
+            elif match("operator","<="):
+                lhs = ASTNode("le",[lhs,expression(idx,tokens,symTable,5)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 5:
+        lhs = expression(idx,tokens,symTable,4)
+        while True:
+            if match("operator","<<"):
+                lhs = ASTNode("shl",[lhs,expression(idx,tokens,symTable,4)],())
+            elif match("operator","-"):
+                lhs = ASTNode("shr",[lhs,expression(idx,tokens,symTable,4)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 4:
+        lhs = expression(idx,tokens,symTable,3)
+        while True:
+            if match("operator","+"):
+                lhs = ASTNode("add",[lhs,expression(idx,tokens,symTable,3)],())
+            elif match("operator","-"):
+                lhs = ASTNode("sub",[lhs,expression(idx,tokens,symTable,3)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 3:
+        lhs = expression(idx,tokens,symTable,2)
+        while True:
+            if match("operator","/"):
+                lhs = ASTNode("div",[lhs,expression(idx,tokens,symTable,2)],())
+            elif match("operator","*"):
+                lhs = ASTNode("mul",[lhs,expression(idx,tokens,symTable,2)],())
+            elif match("operator","%"):
+                lhs = ASTNode("mod",[lhs,expression(idx,tokens,symTable,2)],())
+            else:
+                break
+        return lhs
+
+    if prec >= 2:
+        if match("operator","++"):
+            lhs = ASTNode("incret",[expression(idx,tokens,symTable,2)],())
+        elif match("operator","--"):
+            lhs = ASTNode("decret",[expression(idx,tokens,symTable,2)],())
+        elif match("operator","*"):
+            lhs = ASTNode("deaddr",[expression(idx,tokens,symTable,2)],())
+        elif match("operator","&"):
+            lhs = ASTNode("addr",[expression(idx,tokens,symTable,2)],())
+        elif match("operator","!"):
+            lhs = ASTNode("not",[expression(idx,tokens,symTable,2)],())
+        elif match("identifier","sizeof"):
+            lhs = ASTNode("sizeof",[expression(idx,tokens,symTable,2)],())
+        elif match("operator","~"):
+            lhs = ASTNode("bitnot",[expression(idx,tokens,symTable,2)],())
+        elif match("operator","+"):
+            lhs = expression(idx,tokens,symTable,2)
+        elif match("operator","-"):
+            lhs = ASTNode("neg",[expression(idx,tokens,symTable,2)],())
+        else:
+            snapshot = idx.val
+            if match("operator","("):
+                conv_type , _ = parseType(idx,tokens,symTable)
+                if conv_type:
+                    lhs = ASTNode("as",[expression(idx,tokens,symTable,2)],(conv_type,))
+                    match("operator",")")
+                else:
+                    idx.val = snapshot
+                    lhs = expression(idx,tokens,symTable,1)
+            else:
+                lhs = expression(idx,tokens,symTable,1)
+
+            while True:
+                if match("operator","++"):
+                    lhs = ASTNode("retinc",[lhs],())
+                elif match("operator","--"):
+                    lhs = ASTNode("retdec",[lhs],())
+                else:
+                    break
+        return lhs        
+
+    if prec >= 1:
+        tk : Token
+        if match("operator","("):
+            lhs = expression(idx,tokens,symTable)
+            match("operator",")")
+        elif tk := match("identifier"):
+            var_name = tk.value
+            lhs = ASTNode("var",[],(var_name,))
+        elif tk := match("integer"):
+            lhs = ASTNode("integer",[],(tk.value,))
+        elif tk := match("string"):
+            lhs = ASTNode("string",[],(tk.value,))
+        elif tk := match("float"):
+            lhs = ASTNode("float",[],(tk.value,))
+
+        while True:
+            if match("operator","("):
+                lhs = ASTNode("call",[lhs],())
+            elif match("operator","["):
+                lhs = ASTNode("index",[lhs,expression(idx,tokens,symTable)],())
+                match("operator","]")
+            elif match("operator","."):
+                tk = match("identifier")
+                lhs = ASTNode("attr",[lhs],(tk.value,))
+            elif match("operator","->"):
+                tk = match("identifier")
+                lhs = ASTNode("ptr_attr",[lhs],(tk.value,))
+            else:
+                break
+        return lhs
 
 def program(idx: Ref,tokens: list[Token]) -> ASTNode:
     children = []
     this = ASTNode("program",children,())
     symtable = rootTable()
+
+    
 
     return this

@@ -2,6 +2,6 @@
 
 int main() {
     printf("Hello world");
-    int y[16] = { };
+    int x = 1;
     return 0;
 }
