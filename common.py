@@ -36,5 +36,21 @@ class C_Struct:
     fields   : list[tuple] # list[(C_Type,var_name)]
 
 @dataclass
+class C_Union:
+    fields   : list[tuple] # list[(C_Type,var_name)]
+
+@dataclass
+class C_Enum:...
+
+@dataclass
+class C_Var:
+    oftype   : Any
+
+@dataclass
+class C_Const:
+    oftype   : Any
+    value    : Any
+
+@dataclass
 class C_Metatype:
     typename : str

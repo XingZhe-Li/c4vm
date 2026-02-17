@@ -70,34 +70,39 @@ def tools(idx: Ref, tokens: list[Token]) -> tuple:
 
 def rootTable() -> SymTable:
     symtable = SymTable({
-        ("char",):("type",C_Basetype("i8")),
-        ("short",):("type",C_Basetype("i16")),
-        ("int",):("type",C_Basetype("i32")),
-        ("long",):("type",C_Basetype("i32")),
-        ("long","long"):("type",C_Basetype("i64")),
+        ("char",):("type",C_Basetype("char")),
+        ("short",):("type",C_Basetype("short")),
+        ("int",):("type",C_Basetype("int")),
+        ("long",):("type",C_Basetype("long")),
+        ("long","long"):("type",C_Basetype("long long")),
 
-        ("signed",):("type",C_Basetype("i32")),
-        ("unsigned",):("type",C_Basetype("u32")),
+        ("signed",):("type",C_Basetype("signed")),
+        ("unsigned",):("type",C_Basetype("unsigned")),
 
-        ("float",):("type",C_Basetype("f32")),
-        ("double",):("type",C_Basetype("f64")),
+        ("float",):("type",C_Basetype("float")),
+        ("double",):("type",C_Basetype("double")),
         
-        ("unsigned","char"):("type",C_Basetype("u8")),
-        ("unsigned","short"):("type",C_Basetype("u16")),
-        ("unsigned","int"):("type",C_Basetype("u32")),
-        ("unsigned","long"):("type",C_Basetype("u32")),
-        ("unsigned","long","long"):("type",C_Basetype("u64")),
+        ("unsigned","char"):("type",C_Basetype("char")),
+        ("unsigned","short"):("type",C_Basetype("unsigned short")),
+        ("unsigned","int"):("type",C_Basetype("unsigned int")),
+        ("unsigned","long"):("type",C_Basetype("unsigned long")),
+        ("unsigned","long","long"):("type",C_Basetype("unsigned long long")),
 
-        ("signed","char"):("type",C_Basetype("i8")),
-        ("signed","short"):("type",C_Basetype("i16")),
-        ("signed","int"):("type",C_Basetype("i32")),
-        ("signed","long"):("type",C_Basetype("i32")),
-        ("signed","long","long"):("type",C_Basetype("i64")),
+        ("signed","char"):("type",C_Basetype("signed char")),
+        ("signed","short"):("type",C_Basetype("signed short")),
+        ("signed","int"):("type",C_Basetype("signed int")),
+        ("signed","long"):("type",C_Basetype("signed long")),
+        ("signed","long","long"):("type",C_Basetype("signed long long")),
 
         ("struct",):("metatype",C_Metatype("struct")),
         ("union",):("metatype",C_Metatype("union")),
         ("enum",):("metatype",C_Metatype("enum"))
     })
+
+    # ("type",C_Type)
+    # ("metatype",C_Metatype)
+    # ("var",C_Var)
+    # ("const",C_Const)
 
     return symtable
 
@@ -173,6 +178,70 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable) -> tuple:
     basetype,_ = solve_type(basetype)
 
     return basetype,var_name
+
+def parseDeclaration(idx: Ref,tokens: list[Token],symTable: SymTable):
+    var_type , var_name = parseType(idx,tokens,symTable)
+    _,match,_,_ = tools(idx,tokens)
+
+    if type(var_type) == C_Metatype:
+        # metatypes
+        newtype = None
+        if var_type.typename   == "struct":
+            if match("operator","{"):
+                fields = []
+                while True:
+                    field_type, field_name = parseType(idx,tokens,symTable)
+                    if field_type and field_name:
+                        fields.append((field_type,field_name))
+                    if match("operator","}"):
+                        break
+                    else:
+                        match("operator",";")
+                newtype = C_Struct(fields)
+            else:
+                newtype = C_Struct([])
+        elif var_type.typename == "union":
+            if match("operator","{"):
+                fields = []
+                while True:
+                    field_type, field_name = parseType(idx,tokens,symTable)
+                    if field_type and field_name:
+                        fields.append((field_type,field_name))
+                    if match("operator","}"):
+                        break
+                    else:
+                        match("operator",";")
+                newtype = C_Union(fields)
+            else:
+                newtype = C_Union([])
+        elif var_type.typename == "enum":
+            val = 0; newtype = C_Enum()
+            if match("operator","{"):
+                while True:
+                    if tk := match("identifier"):
+                        if match("operator","="):
+                            if valtk := match("integer"):
+                                val = valtk.value
+                        symTable.set((tk.value,),("const",C_Const(newtype,val)))
+                        val += 1
+                    if match("operator","}"):
+                        break
+                    else:
+                        match("operator",",")
+        if var_name:
+            symTable.set((var_type.typename,var_name),("type",newtype))
+    
+    # otherwise we are declaring a variable
+    else:
+        symTable.set((var_name,),("var",C_Var(var_type)))
+    
+    if match("operator","="):
+        # with init
+        ...
+    elif match("operator","{"):
+        # function
+        ...
+
 
 def program(idx: Ref,tokens: list[Token]) -> ASTNode:
     children = []
