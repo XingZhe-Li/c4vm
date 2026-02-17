@@ -512,10 +512,11 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
         else:
             snapshot = idx.val
             if match("operator","("):
+                print("conv",idx.val,tokens[idx.val])
                 conv_type , _ = parseType(idx,tokens,symTable)
+                match("operator",")")
                 if conv_type:
                     lhs = ASTNode("as",[expression(idx,tokens,symTable,2)],(conv_type,))
-                    match("operator",")")
                 else:
                     idx.val = snapshot
                     lhs = expression(idx,tokens,symTable,1)
