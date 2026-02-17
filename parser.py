@@ -600,15 +600,24 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
         match("identifier",";")
         return ASTNode("do_while",[cond,loop],())
     else:
-        expr = expression(idx,tokens,symTable)
-        match("operator",";")
-        return expr
+        snapshot = idx.val
+        if parseBasetype(idx,tokens,symTable):
+            idx.val = snapshot
+            astnode = declaration(idx,tokens,symTable)
+            match("operator",";")
+            return astnode
+        else:
+            idx.val = snapshot
+            expr = expression(idx,tokens,symTable)
+            match("operator",";")
+            return expr
 
 def program(idx: Ref,tokens: list[Token]) -> ASTNode:
     children = []
     this = ASTNode("program",children,())
     symtable = rootTable()
 
-
+    while idx < len(tokens):
+        children.append(declaration(idx,tokens,symtable))
 
     return this
