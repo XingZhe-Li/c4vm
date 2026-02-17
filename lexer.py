@@ -148,7 +148,15 @@ def tokenize(src: str) -> list[Token]:
                     buf += src[idx]
                     idx += 1
             idx += 1 # "
-            tokens.append(Token("string",buf,line_cnt))
+
+            # merge "a" "b" to "ab"
+            tidx = len(tokens) - 1
+            while tidx >= 0 and tokens[tidx].tktype == "newline":
+                tidx -= 1
+            if tokens[tidx].tktype == "string":
+                tokens[tidx].value += buf
+            else:
+                tokens.append(Token("string",buf,line_cnt))
         elif chr in "+-*/^&|!<>=~":
             idx += 1
             if idx < len(src) and src[idx] == "=":
