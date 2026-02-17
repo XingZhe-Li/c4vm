@@ -217,9 +217,13 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
             if match("operator","{"):
                 fields = []
                 while True:
-                    field_type, field_name = parseType(idx,tokens,symTable)
-                    if field_type and field_name:
-                        fields.append((field_type,field_name))
+                    basetype = parseBasetype(idx,tokens,symTable)
+                    while True:
+                        field_name , field_type = parseType(idx,tokens,symTable,basetype)
+                        if field_type and field_name:
+                            fields.append((field_type,field_name))
+                        if not match("operator",","):
+                            break
                     if match("operator","}"):
                         break
                     else:
