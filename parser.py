@@ -93,6 +93,10 @@ def rootTable() -> SymTable:
         ("signed","int"):("type",C_Basetype("i32")),
         ("signed","long"):("type",C_Basetype("i32")),
         ("signed","long","long"):("type",C_Basetype("i64")),
+
+        ("struct",):("metatype",C_Metatype("struct")),
+        ("union",):("metatype",C_Metatype("union")),
+        ("enum",):("metatype",C_Metatype("enum"))
     })
 
     return symtable
@@ -100,19 +104,25 @@ def rootTable() -> SymTable:
 def parseType(idx: Ref,tokens: list[Token],symTable: SymTable) -> tuple:
     '''return one of (C_Type ,var_name:str)'''
     typenames = []
+    _,match,_,_ = tools(idx,tokens)
+
     while idx.val < len(tokens) and tokens[idx.val].tktype == "identifier":
         typename = tokens[idx.val].value ; typetuple = tuple((*typenames,typename))
-        if (symItem := symTable.get(typetuple)) and symItem[0] == "type":
+        if (symItem := symTable.get(typetuple)) and symItem[0] in ["metatype","type"]:
             typenames.append(typename)
             idx.val += 1
         else:
             break
+
     if not typenames:
         return None,None # not a type
-    basetype: C_Basetype = symTable.get(tuple(typenames))[1]
+    
     var_name = None
-
-    _,match,_,_ = tools(idx,tokens)
+    basetype = symTable.get(tuple(typenames))[1]
+    if type(basetype) == C_Metatype:
+        if tk := match("identifier"):
+            var_name = tk.value
+        return basetype , var_name
 
     def solve_type(basetype):
         '''return TopType & BottomType'''

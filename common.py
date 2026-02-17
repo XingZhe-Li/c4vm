@@ -30,3 +30,11 @@ class C_Array:
 class C_Func:
     rettype   : Any
     argtype   : list[tuple] # list[(C_Type,var_name)]
+
+@dataclass
+class C_Struct:
+    fields   : list[tuple] # list[(C_Type,var_name)]
+
+@dataclass
+class C_Metatype:
+    typename : str
