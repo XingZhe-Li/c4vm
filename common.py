@@ -54,3 +54,7 @@ class C_Const:
 @dataclass
 class C_Metatype:
     typename : str
+
+@dataclass
+class C_Typedef:
+    of : Any

@@ -105,7 +105,9 @@ def rootTable() -> SymTable:
 
         ("struct",):("metatype",C_Metatype("struct")),
         ("union",):("metatype",C_Metatype("union")),
-        ("enum",):("metatype",C_Metatype("enum"))
+        ("enum",):("metatype",C_Metatype("enum")),
+
+        ("typedef",):("typedef",C_Typedef(None))
     })
 
     # ("type",C_Type)
@@ -119,7 +121,7 @@ def parseBasetype(idx: Ref,tokens: list[Token] , symTable : SymTable):
     typenames = []
     while idx.val < len(tokens) and tokens[idx.val].tktype == "identifier":
         typename = tokens[idx.val].value ; typetuple = tuple((*typenames,typename))
-        if (symItem := symTable.get(typetuple)) and symItem[0] in ["metatype","type"]:
+        if (symItem := symTable.get(typetuple)) and symItem[0] in ["typedef","metatype","type"]:
             typenames.append(typename)
             idx.val += 1
         else:
@@ -138,6 +140,10 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -
             return None,None
 
     var_name = None
+    if type(basetype) == C_Typedef:
+        newtype,typename = parseType(idx,tokens,symTable)
+        return C_Typedef(newtype) , typename
+
     if type(basetype) == C_Metatype:
         if tk := match("identifier"):
             var_name = tk.value
@@ -198,7 +204,12 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
     basetype = parseBasetype(idx,tokens,symTable)
     _,match,_,_ = tools(idx,tokens)
 
-    if type(basetype) == C_Metatype:
+    if type(basetype) == C_Typedef:
+        newtype , typename = parseType(idx,tokens,symTable,basetype)
+        if typename:
+            symTable.set((typename,),("type",newtype.of))
+
+    elif type(basetype) == C_Metatype:
         # metatypes
         var_type , var_name = parseType(idx,tokens,symTable,basetype)
         newtype = None
@@ -618,12 +629,6 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
         retval = expression(idx,tokens,symTable,14)
         match("operator",";")
         return ASTNode("ret",[retval],())
-    elif match("identifier","typedef"):
-        newtype, typename = parseType(idx,tokens,symTable)
-        match("operator",";")
-        if typename:
-            symTable.set((typename,),("type",newtype))
-        return None
     else:
         snapshot = idx.val
         if parseBasetype(idx,tokens,symTable):
@@ -645,12 +650,6 @@ def program(idx: Ref,tokens: list[Token]) -> ASTNode:
     _,match,_,_ = tools(idx,tokens)
 
     while idx.val < len(tokens):
-        if match("identifier","typedef"):
-            newtype, typename = parseType(idx,tokens,symtable)
-            match("operator",";")
-            if typename:
-                symtable.set((typename,),("type",newtype))
-        
         dec = declaration(idx,tokens,symtable)
         if dec:
             children.append(dec)
