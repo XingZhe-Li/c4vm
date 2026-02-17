@@ -178,7 +178,11 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -
         else:
             dimensions = []
             while match("operator","["):
-                arr_size = match("integer").value
+                tk = match("integer")
+                if tk:
+                    arr_size = match("integer")
+                else:
+                    arr_size = None
                 dimensions.append(arr_size)
                 match("operator","]")
             if dimensions:
