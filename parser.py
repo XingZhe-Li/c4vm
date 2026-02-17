@@ -79,6 +79,7 @@ def tools(idx: Ref, tokens: list[Token]) -> tuple:
 
 def rootTable() -> SymTable:
     symtable = SymTable({
+        ("void",):("type",C_Basetype("void")),
         ("char",):("type",C_Basetype("char")),
         ("short",):("type",C_Basetype("short")),
         ("int",):("type",C_Basetype("int")),
