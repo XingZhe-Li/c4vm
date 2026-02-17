@@ -6,7 +6,7 @@ class Ref:
     def __repr__(self):
         return "Ref({0})".format(self.val)
 
-REPR_SYMTABLE = False
+REPR_SYMTABLE = True
 
 class SymTable:
     mapper : dict
@@ -618,6 +618,12 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
         retval = expression(idx,tokens,symTable,14)
         match("operator",";")
         return ASTNode("ret",[retval],())
+    elif match("identifier","typedef"):
+        newtype, typename = parseType(idx,tokens,symTable)
+        match("operator",";")
+        if typename:
+            symTable.set((typename,),("type",newtype))
+        return None
     else:
         snapshot = idx.val
         if parseBasetype(idx,tokens,symTable):
@@ -636,7 +642,15 @@ def program(idx: Ref,tokens: list[Token]) -> ASTNode:
     symtable = rootTable()
     this = ASTNode("program",children,(symtable,))
 
+    _,match,_,_ = tools(idx,tokens)
+
     while idx.val < len(tokens):
+        if match("identifier","typedef"):
+            newtype, typename = parseType(idx,tokens,symtable)
+            match("operator",";")
+            if typename:
+                symtable.set((typename,),("type",newtype))
+        
         dec = declaration(idx,tokens,symtable)
         if dec:
             children.append(dec)
