@@ -30,9 +30,13 @@ def compile(source_path,target_path):
     # preprocess
     cwd = os.path.dirname(__file__) # cwd for #include
     tokens = preprocess.entry(tokens,cwd)
+    print("="*10 + "tokens" + "="*10)
+    print(tokens)
 
     # parse
     ASTRoot = parser.parse(tokens)
+    print("="*10 + "ast" + "="*10)
+    print(ASTRoot)
 
 if __name__ == '__main__':
     source = "hi.c"

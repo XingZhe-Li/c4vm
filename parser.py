@@ -3,6 +3,10 @@ from common import *
 class Ref:
     def __init__(self,val):
         self.val = val
+    def __repr__(self):
+        return "Ref({0})".format(self.val)
+
+REPR_SYMTABLE = False
 
 class SymTable:
     mapper : dict
@@ -23,6 +27,10 @@ class SymTable:
         self.mapper[sym] = val
     def derive(self):
         return SymTable(father=self)
+    def __repr__(self):
+        if REPR_SYMTABLE:
+            return "SymTable(mapper={0},father={1})".format(self.mapper,self.father)
+        return "..."
 
 def parse(tokens: list[Token]) -> ASTNode:
     idx = Ref(0)
@@ -37,6 +45,7 @@ def tools(idx: Ref, tokens: list[Token]) -> tuple:
 
     def match(tktype=None,value=None):
         tk = peek()
+        if tk is None:return None
         if tktype is not None and tktype != tk.tktype: return None
         if value  is not None and value  != tk.value:  return None
         idx.val += 1
@@ -308,7 +317,6 @@ def initlist(idx:Ref, tokens: list[Token], symTable: SymTable) -> ASTNode:
 
 def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTNode:
     _,match,_,_ = tools(idx,tokens)
-    
     lhs = None
 
     if prec >= 15:
@@ -318,6 +326,7 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
                 lhs = ASTNode("comma",[lhs,expression(idx,tokens,symTable,14)],())
             else:
                 break
+        return lhs
 
     if prec >= 14:
         lhs = expression(idx,tokens,symTable,13)
@@ -524,7 +533,13 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
 
         while True:
             if match("operator","("):
-                lhs = ASTNode("call",[lhs],())
+                args = []
+                while True:
+                    args.append(expression(idx,tokens,symTable,14))
+                    if not match("operator",","):
+                        break
+                match("operator",")")
+                lhs = ASTNode("call",[lhs,*args],())
             elif match("operator","["):
                 lhs = ASTNode("index",[lhs,expression(idx,tokens,symTable)],())
                 match("operator","]")
@@ -599,6 +614,10 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
         match("identifier",")")
         match("identifier",";")
         return ASTNode("do_while",[cond,loop],())
+    elif match("identifier","return"):
+        retval = expression(idx,tokens,symTable,14)
+        match("operator",";")
+        return ASTNode("ret",[retval],())
     else:
         snapshot = idx.val
         if parseBasetype(idx,tokens,symTable):
@@ -614,10 +633,14 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
 
 def program(idx: Ref,tokens: list[Token]) -> ASTNode:
     children = []
-    this = ASTNode("program",children,())
     symtable = rootTable()
+    this = ASTNode("program",children,(symtable,))
 
-    while idx < len(tokens):
-        children.append(declaration(idx,tokens,symtable))
+    while idx.val < len(tokens):
+        dec = declaration(idx,tokens,symtable)
+        if dec:
+            children.append(dec)
+        if idx.val < len(tokens) and tokens[idx.val].tktype == "operator" and tokens[idx.val].value == ";":
+            idx.val += 1
 
     return this

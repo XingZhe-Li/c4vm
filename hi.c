@@ -1,7 +1,3 @@
-#include <stdio.h>
-
 int main() {
-    printf("Hello world");
-    int x[20] = 1;
-    return 0;
+    printf("Hello World",1,2,3,4);
 }
