@@ -30,13 +30,19 @@ def compile(source_path,target_path):
     # preprocess
     cwd = os.path.dirname(__file__) # cwd for #include
     tokens = preprocess.entry(tokens,cwd)
-    print("="*10 + "tokens" + "="*10)
-    print(tokens)
 
     # parse
     ASTRoot = parser.parse(tokens)
-    print("="*10 + "ast" + "="*10)
-    print(ASTRoot)
+
+    # codegen
+    raw_image = codegen.entry(ASTRoot)
+
+    # pack
+    packed_image = packer.packer(raw_image)
+
+    with open(target_path,'wb') as f:
+        f.write(packed_image)
+    print("compiled successfully!")
 
 if __name__ == '__main__':
     source = "hi.c"
