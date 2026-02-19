@@ -16,7 +16,8 @@ struct c4vm {
 enum OPCODES { 
     NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
-    OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,OPCODE_END
+    FADD,FSUB,FMUL,FDIV,I2F ,F2I ,
+    OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,OPCODE_END
 };
 
 int OPCODE_LEN = sizeof(enum OPCODES);
@@ -30,7 +31,8 @@ long long run(struct c4vm* vm) {
                 "fetch opcode = %.4s\n",
                 &"NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
-                "OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,"[opcode * 5]
+                "FADD,FSUB,FMUL,FDIV,I2F ,F2I"
+                "OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,FSTR,SCAT,"[opcode * 5]
             );
         }
 #endif
@@ -105,6 +107,44 @@ long long run(struct c4vm* vm) {
         } else if (opcode == MOD) {
             vm->reg = vm->base[vm->sp++] % vm->reg;            
         } 
+
+        // Floating Point Support (only double , "f64")
+        else if (opcode == FADD) {
+            double f1,f2,fresult;
+            memcpy(&f1,&vm->reg,8);
+            memcpy(&f2,&vm->base[vm->sp++],8);
+            fresult = f1 + f2;
+            memcpy(&vm->reg,&fresult,8);
+        } else if (opcode == FSUB) {
+            double f1,f2,fresult;
+            memcpy(&f1,&vm->reg,8);
+            memcpy(&f2,&vm->base[vm->sp++],8);
+            fresult = f2 - f1;
+            memcpy(&vm->reg,&fresult,8);
+        } else if (opcode == FMUL) {
+            double f1,f2,fresult;
+            memcpy(&f1,&vm->reg,8);
+            memcpy(&f2,&vm->base[vm->sp++],8);
+            fresult = f1 * f2;
+            memcpy(&vm->reg,&fresult,8);
+        } else if (opcode == FDIV) {
+            double f1,f2,fresult;
+            memcpy(&f1,&vm->reg,8);
+            memcpy(&f2,&vm->base[vm->sp++],8);
+            fresult = f2 / f1;
+            memcpy(&vm->reg,&fresult,8); 
+        } else if (opcode == I2F) {
+            long long ibuf; double fbuf;
+            memcpy(&ibuf,&vm->reg,sizeof(long long));
+            fbuf = (double) ibuf;
+            memcpy(&vm->reg,&fbuf,sizeof(long long));
+        } else if (opcode == F2I) {
+            long long ibuf; double fbuf;
+            memcpy(&fbuf,&vm->reg,sizeof(long long));
+            ibuf = (long long) fbuf;
+            memcpy(&vm->reg,&ibuf,sizeof(long long));
+        }
+
         // Library functions
         else if (opcode == OPEN) {
 #ifdef C4VM_DEBUG
@@ -129,6 +169,8 @@ long long run(struct c4vm* vm) {
             free(vm->base + vm->base[vm->sp]);
         } else if (opcode == MSET) {
             vm->reg = (long long) memset((char *)vm->base + vm->base[vm->sp + 2],vm->base[vm->sp + 1],vm->base[vm->sp]) - (long long)vm->base;
+        } else if (opcode == MCPY) {
+            memcpy((char *)vm->base + vm->base[vm->sp + 2],(char *) vm->base + vm->base[vm->sp + 1],vm->base[vm->sp]);
         } else if (opcode == MCMP) {
             vm->reg = memcmp((char*)vm->base + vm->base[vm->sp + 2],(char*)vm->base + vm->base[vm->sp + 1],vm->base[vm->sp]);
         } else if (opcode == EXIT) {
