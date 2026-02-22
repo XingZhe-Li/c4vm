@@ -31,7 +31,7 @@ long long run(struct c4vm* vm) {
                 "fetch opcode = %.4s\n",
                 &"NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
-                "FADD,FSUB,FMUL,FDIV,I2F ,F2I"
+                "FADD,FSUB,FMUL,FDIV,I2F ,F2I ,"
                 "OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,FSTR,SCAT,"[opcode * 5]
             );
         }
@@ -279,19 +279,44 @@ void hi_demo() {
     run(&vm);
 }
 
-int main() {
+void fib_demo() {
+    long long text[4096] = {
+        IMM,680997,PSH,
+        IMM,8 * (4096 - 1),PSH,
+        IMM,5,PSH, // fib(5)
+        JSR,18,ADJ,1,PSH,
+        PRTF,ADJ,2,
+        EXIT,
 
-    long long text[] = {
-        IMM,0,PSH,
-        IMM,750245352958211171,PSH,
-        IMM,8 * (256 - 2),PSH,
-        PRTF,ADJ,1,
-        IMM,0,PSH,
-        EXIT
+        ENT,0,
+        IMM,1,PSH,
+        LEA,16,LI,
+        GE,
+
+        BZ,32,
+
+        IMM,1,
+        LEV,
+
+        LEA,16,LI,PSH,IMM,1,SUB,PSH,
+        JSR,18,ADJ,1,PSH,
+        LEA,16,LI,PSH,IMM,2,SUB,PSH,
+        JSR,18,ADJ,1,PSH,
+        IMM,0,ADD,ADD,
+        LEV,
     };
 
-    make(text,sizeof(text),2048,"output.image");
-    load("output.image");
+    struct c4vm vm = {
+        .bp = 4096,
+        .pc = 0,
+        .base = text,
+        .sp = 4096,
+        .reg = 0,
+    };
 
+    run(&vm);
+}
+
+int main() {
     return 0;
 }
