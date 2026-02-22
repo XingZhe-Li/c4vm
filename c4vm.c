@@ -40,7 +40,7 @@ long long run(struct c4vm* vm) {
         if (opcode == NOP) {
             continue;
         } else if (opcode == LEA) {
-            vm->reg = vm->base[vm->bp+vm->base[vm->pc++]];
+            vm->reg = 8 * vm->bp + vm->base[vm->pc++];
         } else if (opcode == IMM) {
             vm->reg = vm->base[vm->pc++];
         } else if (opcode == JMP) {
@@ -63,13 +63,13 @@ long long run(struct c4vm* vm) {
             vm->bp = vm->base[vm->sp++];
             vm->pc = vm->base[vm->sp++];
         } else if (opcode == LI) {
-            vm->reg = vm->base[vm->reg];
+            vm->reg = *(long long*)((char*)vm->base + vm->reg);
         } else if (opcode == LC) {
             vm->reg = ((char*)vm->base)[vm->reg];
         } else if (opcode == SI) {
-            vm->base[vm->sp++] = vm->reg;
+            *(long long*)((char*)vm->base + vm->base[vm->sp++]) = vm->reg;
         } else if (opcode == SC) {
-            ((char*)vm->base)[vm->sp++] = vm->reg;
+            *((char*)vm->base + vm->base[vm->sp++]) = vm->reg;
         } else if (opcode == PSH) {
             vm->base[--vm->sp] = vm->reg;
         } 
