@@ -323,15 +323,12 @@ def initlist(idx:Ref, tokens: list[Token], symTable: SymTable) -> ASTNode:
             value = expression(idx,tokens,symTable,14)
             lst.append((tk.value,value))
         elif match("operator","{"):
-            folds += 1
+            sublst = initlist(idx,tokens,symTable)
+            match("operator","}")
+            lst.append((list,sublst))
         else:
-            if peek() is None or peek().tktype == "operator" and peek().value == "}":
-                if folds > 0:
-                    folds -= 1
-                    match("operator","}")
-                    match("operator",",")
-                else:
-                    break
+            if not peek() or peek().tktype == "operator" and peek().value == "}":
+                break
             value = expression(idx,tokens,symTable,14)
             lst.append((autoidx,value))
             autoidx += 1
