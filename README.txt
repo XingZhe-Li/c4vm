@@ -12,4 +12,6 @@ int arr[] = {1,2,3};
 int arr[2][2] = {1,2,3,4};
 
 typedef struct x {} z;
+
+return struct;
 ```
