@@ -92,7 +92,7 @@ def rootTable() -> SymTable:
         ("float",):("type",C_Basetype("float")),
         ("double",):("type",C_Basetype("double")),
         
-        ("unsigned","char"):("type",C_Basetype("char")),
+        ("unsigned","char"):("type",C_Basetype("unsigned char")),
         ("unsigned","short"):("type",C_Basetype("unsigned short")),
         ("unsigned","int"):("type",C_Basetype("unsigned int")),
         ("unsigned","long"):("type",C_Basetype("unsigned long")),
