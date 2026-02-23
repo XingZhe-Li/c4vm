@@ -167,6 +167,8 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -
         if match("operator","("):
             argtypes = []
             while True:
+                if match("operator",")"):
+                    break
                 argtypes.append(parseType(idx,tokens,symTable))
                 if match("operator",")"):
                     break
