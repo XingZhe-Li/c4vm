@@ -325,7 +325,8 @@ def initlist(idx:Ref, tokens: list[Token], symTable: SymTable) -> ASTNode:
         elif match("operator","{"):
             sublst = initlist(idx,tokens,symTable)
             match("operator","}")
-            lst.append((list,sublst))
+            lst.append((autoidx,sublst))
+            autoidx += 1
         else:
             if not peek() or peek().tktype == "operator" and peek().value == "}":
                 break
