@@ -16,4 +16,6 @@ typedef struct x {} z;
 return struct; 
 
 all arguments are resized to 8 bytes when passed as a parameter!
+
+goto is not supported!
 ```
