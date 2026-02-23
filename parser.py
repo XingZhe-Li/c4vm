@@ -308,7 +308,7 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
 
 def initlist(idx:Ref, tokens: list[Token], symTable: SymTable) -> ASTNode:
     peek,match,_,_ = tools(idx,tokens) ; autoidx = 0
-    lst = [] ; folds = 0 # [(key,value)]
+    lst = [] ; # [(key,value)]
     while True:
         if match("operator","["):
             autoidx = match("integer").value
