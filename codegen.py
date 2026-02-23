@@ -116,14 +116,77 @@ def program(ctx : CodegenContext,astnode : ASTNode):
     poolinit(ctx,astnode)            # init strings to literal pool
     static_init(ctx,astnode)         # fill in init data for static vars
 
+    codegen_functions(ctx,astnode)
+
     print(ctx.allocator.symmap)
     print(ctx.literalpool.mapper)
 
+def codegen_functions(ctx: CodegenContext, astroot : ASTNode):
+    for astnode in astroot.children:
+        if astnode.nodeType != "function":
+            continue
+        codegen_function(ctx,astnode)
+
+def codegen_function(ctx : CodegenContext, astnode : ASTNode):
+    # navigate entry point JMP to this function
+    function_name , func_type, func_symtable = astnode.metas # missed 1 symtable here?!
+
+    ent_pos = ctx.image.extend(
+        i64(opcode["ENT"]) + i64(0)
+    )
+    var_at, var_pos = ctx.allocator.get(function_name) # var_at could only be "image" here
+    ctx.image.block[var_pos + 8:var_pos + 16] = i64(ent_pos)
+
+    # fill in _main if function is main
+    if function_name == "main":
+        ctx.image.block[8:16] = i64(ent_pos)
+
+    # function scope start
+    new_allocator = Allocator(ctx.allocator,AllocBackend("stack"))
+    
+    func_type : C_Func
+    func_symtable : SymTable
+
+    arg_count = len(func_type.argtype)
+    for idx , (arg_type, arg_name) in enumerate(func_type.argtype):
+        # all arguments are resized to 8 when passed as a parameter!
+        new_allocator.symmap[arg_name] = 8 * (arg_count - 1 - idx) + 16
+
+    ctx = CodegenContext(
+        ctx.image,ctx.literalpool,new_allocator,func_symtable
+    )
+    codegen_actions(ctx,astnode.children[0])
+
+    # fill in ENT for stack allocation
+    ctx.allocator.backend.align(8)
+    ctx.image.block[ent_pos + 8:ent_pos + 16] = i64(ctx.allocator.backend.end() // 8)
+
+def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
+    symtable : SymTable = astnode.metas[0]
+    new_allocator       = Allocator(ctx.allocator,ctx.allocator.backend)
+    ctx = CodegenContext(
+        ctx.image,ctx.literalpool,new_allocator,symtable
+    )
+    symdict = symtable.mapper
+    for var_name_tuple , (var_type,typeinfo) in symdict.items():
+        if var_type != 'var':
+            continue
+        typeinfo : C_Var
+        var_type = typeinfo.oftype
+        var_name = var_name_tuple[0]
+        new_allocator.allocspace(var_name,type_size(var_type))
+
 def i8(x : int) -> bytes:
-    return x.to_bytes(1,'little')
+    return x.to_bytes(1,'little',signed=True)
 
 def i64(x : int) -> bytes:
-    return x.to_bytes(8,'little')
+    return x.to_bytes(8,'little',signed=True)
+
+def u8(x : int) -> bytes:
+    return x.to_bytes(1,'little',signed=False)
+
+def u64(x : int) -> bytes:
+    return x.to_bytes(8,'little',signed=False)
 
 def f64(x : float) -> bytes:
     return struct.pack('<d',x)
