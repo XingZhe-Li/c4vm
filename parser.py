@@ -329,6 +329,7 @@ def initlist(idx:Ref, tokens: list[Token], symTable: SymTable) -> ASTNode:
                 if folds > 0:
                     folds -= 1
                     match("operator","}")
+                    match("operator",",")
                 else:
                     break
             value = expression(idx,tokens,symTable,14)
