@@ -224,7 +224,7 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
                 while True:
                     basetype = parseBasetype(idx,tokens,symTable)
                     while True:
-                        field_name , field_type = parseType(idx,tokens,symTable,basetype)
+                        field_type , field_name = parseType(idx,tokens,symTable,basetype)
                         if field_type and field_name:
                             fields.append((field_type,field_name))
                         if not match("operator",","):
