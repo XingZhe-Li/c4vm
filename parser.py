@@ -293,7 +293,13 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
                     ],())
                     rootnode.children.append(astnode)
             elif match("operator","{"):
-                astnode = ASTNode("function",[statements(idx,tokens,symTable)],(var_name,var_type,))
+                # symtable for arguments
+                argsymtable = symTable.derive()
+                var_type : C_Func
+                for argtype , argname in var_type.argtype:
+                    argsymtable.set((argname,),("var",C_Var(argtype)))
+                
+                astnode = ASTNode("function",[statements(idx,tokens,symTable)],(var_name,var_type,argsymtable))
                 match("operator","}")
                 rootnode.children.append(astnode)
             if not match("operator",","):
