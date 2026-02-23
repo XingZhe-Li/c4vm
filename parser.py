@@ -182,7 +182,7 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -
             while match("operator","["):
                 tk = match("integer")
                 if tk:
-                    arr_size = match("integer")
+                    arr_size = tk.value
                 else:
                     arr_size = None
                 dimensions.append(arr_size)
