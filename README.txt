@@ -13,5 +13,7 @@ int arr[2][2] = {1,2,3,4};
 
 typedef struct x {} z;
 
-return struct;
+return struct; 
+
+all arguments are resized to 8 bytes when passed as a parameter!
 ```
