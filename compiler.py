@@ -38,7 +38,7 @@ def compile(source_path,target_path):
     raw_image = codegen.entry(ASTRoot)
 
     print("raw_image:",raw_image)
-    sys.exit(1) # codegen WIP
+    # sys.exit(1) # codegen WIP
 
     # pack
     packed_image = packer.packer(raw_image)

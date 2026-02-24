@@ -320,6 +320,6 @@ long long load_with_args(char* filename,long long argc,char** argv) {
 }
 
 int main(int argc,char** argv) {
-    load("out.vm");
+    load_with_args("out.vm",argc,argv);
     return 0;
 }

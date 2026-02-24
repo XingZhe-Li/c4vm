@@ -240,7 +240,10 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
             return ret_type
         else:
             return None
-        
+    elif astnode.nodeType == "var":
+        var_name = astnode.metas[0]
+        var_type_type , var_type = ctx.symtable.get((var_name,))
+        return var_type
     # other evaluations
 
 def codegen_action(ctx : CodegenContext,astnode : ASTNode):
@@ -275,6 +278,33 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         literal = astnode.metas[0]
         image_pos = ctx.literalpool.alloc(literal)
         ctx.image.extend(i64(opcode["IMM"]) + i64(image_pos))
+    
+    elif astnode.nodeType == "integer":
+        literal = astnode.metas[0]
+        ctx.image.extend(i64(opcode["IMM"]) + i64(literal))
+
+    elif astnode.nodeType == "float":
+        literal = astnode.metas[0]
+        ctx.image.extend(i64(opcode["IMM"]) + f64(literal))
+
+    elif astnode.nodeType == "var":
+        var_name = astnode.metas[0]
+        var_type : C_Var = ast_type(ctx,astnode)
+        var_section , var_pos  = ctx.allocator.get(var_name)
+        if var_section == "stack":
+            if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
+                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+                ctx.image.extend(i64(opcode["LC"]))
+            else:
+                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+                ctx.image.extend(i64(opcode["LI"]))
+        elif var_section == "image":
+            if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
+                ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
+                ctx.image.extend(i64(opcode["LC"]))
+            else:
+                ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
+                ctx.image.extend(i64(opcode["LI"]))
 
 def i8(x : int) -> bytes:
 
