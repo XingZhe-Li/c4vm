@@ -542,7 +542,75 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         else:
             ctx.image.extend(i64(opcode["LI"]))
 
+    elif astnode.nodeType == "addr":
+        def solve_addr(astnode : ASTNode):
+            if astnode.nodeType == "var":
+                var_name = astnode.metas[0]
+                var_section , var_pos = ctx.allocator.get(var_name)
+                if var_section == "stack":
+                    ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+                elif var_section == "image":
+                    ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
+            elif astnode.nodeType == "index":
+                etype = unpack_C_Var(ast_type(ctx,astnode))
+                if etype is None: # if failed when inferencing , use long long 
+                    etype = C_Basetype("long long")
+                if type(etype) == C_Pointer:
+                    childtype = etype.oftype
+                elif type(etype) == C_Array:
+                    if len(etype.dimension) == 1:
+                        childtype = etype.oftype
+                    else:
+                        childtype = C_Array(etype.oftype,etype.dimension[1:])
+                childsize = type_size(childtype)
+                lhs = astnode.children[0]
+                rhs = astnode.children[1]
+                solve_addr(lhs)
+                ctx.image.extend(i64(opcode["PSH"]))
+                codegen_action(ctx,rhs)
+                ctx.image.extend(i64(opcode["PSH"]))
+                ctx.image.extend(i64(opcode["IMM"]) + i64(childsize))
+                ctx.image.extend(i64(opcode["MUL"]))
+                ctx.image.extend(i64(opcode["ADD"]))
+            elif astnode.nodeType == "deaddr":
+                solve_addr(astnode.children[0])
+                ctx.image.extend(i64(opcode["LI"]))
+            elif astnode.nodeType == "attr":
+                field_name = astnode.metas[0]
+                lhs = astnode.children[0]
+                solve_addr(lhs)
+                ctx.image.extend(i64(opcode["PSH"]))
+                etype = unpack_C_Var(ast_type(ctx,lhs))
+                field_offset , field_type = struct_offset(etype,field_name)
+                ctx.image.extend(i64(opcode["IMM"]) + i64(field_offset))
+                ctx.image.extend(i64(opcode["ADD"]))
+            elif astnode.nodeType == "ptr_attr":
+                field_name = astnode.metas[0]
+                lhs = astnode.children[0]
+                solve_addr(lhs)
+                ctx.image.extend(i64(opcode["LI"]) + i64(opcode["PSH"]))
+                etype = unpack_C_Var(ast_type(ctx,lhs))
+                field_offset , field_type = struct_offset(etype,field_name)
+                ctx.image.extend(i64(opcode["IMM"]) + i64(field_offset))
+                ctx.image.extend(i64(opcode["ADD"]))
+            elif astnode.nodeType in ["add","sub"]:
+                lhs = astnode.children[0]
+                rhs = astnode.children[1]
+                ltype = unpack_C_Var(ast_type(ctx,lhs))
+                rtype = unpack_C_Var(ast_type(ctx,lhs))
+                if type(rtype) == C_Pointer:
+                    lhs  ,rhs   = rhs  ,lhs
+                    ltype,rtype = rtype,ltype
+                solve_addr(lhs)
+                ctx.image.extend(i64(opcode["PSH"]))
+                codegen_action(ctx,rhs)
+                elemsize = type_size(ltype.oftype)
+                ctx.image.extend(i64(opcode["PSH"]))
+                ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
+                ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
 
+        lhs   = astnode.children[0]
+        solve_addr(lhs)
 
     elif astnode.nodeType == "actions":
         codegen_actions(ctx,astnode)
