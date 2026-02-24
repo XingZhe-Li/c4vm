@@ -319,6 +319,16 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
     elif astnode.nodeType == "as":
         astype = astnode.metas[0]
         return astype
+    elif astnode.nodeType == "addr":
+        lhs   = astnode.children[0]
+        etype = unpack_C_Var(ast_type(ctx,lhs))
+        return C_Pointer(etype)
+    elif astnode.nodeType == "deaddr":
+        lhs   = astnode.children[0]
+        etype = unpack_C_Var(ast_type(ctx,lhs))
+        if type(etype) == C_Pointer:
+            return etype.oftype
+        return etype # this should be unreachable!
 
 def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     print('codegen_action',astnode)
