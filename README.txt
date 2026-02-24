@@ -18,6 +18,8 @@ return struct;
 all arguments are resized to 8 bytes when passed as a parameter!
 
 goto is not supported!
+
+static / const are not supported!
 ```
 
 ASTNode Types:
