@@ -5,7 +5,7 @@ from parser import SymTable
 opcode_text = '''
 NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
 OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
-FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,
+FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,
 OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF
 '''
 
@@ -454,6 +454,42 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         ctx.image.extend(i64(opcode["PSH"]))
         codegen_action(ctx,rhs)
         ctx.image.extend(i64(opcode["SHR"]))
+
+    elif astnode.nodeType == "bitand":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["AND"]))
+
+    elif astnode.nodeType == "bitor":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["OR"]))
+
+    elif astnode.nodeType == "bitxor":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["XOR"]))
+
+    elif astnode.nodeType == "bitnot":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["NOT"]))
 
     elif astnode.nodeType == "neg":
         lhs = astnode.children[0]
