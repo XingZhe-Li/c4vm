@@ -189,6 +189,8 @@ def tokenize(src: str) -> list[Token]:
                         if idx < len(src) and src[idx] == '/':
                             idx += 1
                             break
+                else:
+                    tokens.append(Token("operator",chr,line_cnt))
             else:
                 tokens.append(Token("operator",chr,line_cnt))
         elif chr in "()[]{},;":
