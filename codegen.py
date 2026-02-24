@@ -108,18 +108,36 @@ def entry(astroot: ASTNode) -> bytes:
     ctx = CodegenContext(image,literalpool,allocator,symtable)
 
     program(ctx,astroot)
+    disasm(ctx.image.block)
 
     return ctx.image.block
+
+def disasm(image: bytearray):
+    rev_opcode = {v: k for k, v in opcode.items()}
+    
+    print(f"{'Addr':<6} | {'Opcode':<8} | {'Value (Dec)':<15} | {'Hex':<18} | {'Raw Bytes'}")
+    print("-" * 75)
+
+    for idx in range(0, len(image), 8):
+        bs = image[idx:idx+8]
+        decimal = int.from_bytes(bs, 'little', signed=True)
+        hex_val = f"0x{int.from_bytes(bs, 'little', signed=False):x}"
+        
+        op_name = rev_opcode.get(decimal, "")
+        ascii_repr = "".join(chr(b) if 32 <= b <= 126 else "." for b in bs)
+
+        if op_name:
+            display_op = f"[{op_name}]"
+        else:
+            display_op = f"(data)"
+
+        print(f"{idx:<6} | {display_op:<8} | {decimal:<15} | {hex_val:<18} | {ascii_repr}")
 
 def program(ctx : CodegenContext,astnode : ASTNode):
     program_symtab_init(ctx,astnode) # alloc static space for variables
     poolinit(ctx,astnode)            # init strings to literal pool
     static_init(ctx,astnode)         # fill in init data for static vars
-
     codegen_functions(ctx,astnode)
-
-    print(ctx.allocator.symmap)
-    print(ctx.literalpool.mapper)
 
 def codegen_functions(ctx: CodegenContext, astroot : ASTNode):
     for astnode in astroot.children:
@@ -163,7 +181,7 @@ def codegen_function(ctx : CodegenContext, astnode : ASTNode):
     # fill in ENT for stack allocation
     ctx.allocator.backend.align(8)
     ctx.image.block[ent_pos + 8:ent_pos + 16] = i64(ctx.allocator.backend.end() // 8)
-    ctx.image.extend(i64(opcode["LEV"]))
+    ctx.image.extend(i64(opcode["LEV"])) # auto return for lazy guys 
 
 def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
     symtable : SymTable = astnode.metas[0]
