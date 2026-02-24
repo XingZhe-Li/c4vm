@@ -193,7 +193,7 @@ def tokenize(src: str) -> list[Token]:
                     tokens.append(Token("operator",chr,line_cnt))
             else:
                 tokens.append(Token("operator",chr,line_cnt))
-        elif chr in "()[]{},;":
+        elif chr in "()[]{},;.":
             # one char operator with no combiner
             idx += 1
             tokens.append(Token("operator",chr,line_cnt))
