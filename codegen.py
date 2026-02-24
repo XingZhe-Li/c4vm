@@ -534,6 +534,16 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         codegen_action(ctx,lhs)
         codegen_action(ctx,rhs)
 
+    elif astnode.nodeType == "deaddr":
+        lhs   = astnode.children[0]
+        etype = unpack_C_Var(ast_type(ctx,lhs))
+        if type(etype) == C_Basetype and etype.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
+
+
+
     elif astnode.nodeType == "actions":
         codegen_actions(ctx,astnode)
 
