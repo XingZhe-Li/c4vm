@@ -219,6 +219,11 @@ long long load_mem(long long* base,long long space) {
         .reg  = 0,
         .base = base,
     };
+
+    long long exit_addr = (vm.sp - 1) * 8;
+    vm.base[--vm.sp] = EXIT;
+    vm.base[--vm.sp] = exit_addr;
+
     return run(&vm);
 }
 
@@ -270,66 +275,46 @@ void make(long long* base,long long size,long long space,char* filename) {
     printf("Successfully created image: %s (%lld bytes written)\n", filename, size + 8);
 }
 
-void hi_demo() {
-    long long text[4096] = {
-        IMM,0,PSH,
-        IMM,750245352958211171,PSH,
-        IMM,8 * (4096 - 2),PSH,
-        PRTF,ADJ,1,
-        IMM,0,PSH,
-        EXIT
-    };
+long long load_with_args(char* filename,long long argc,char** argv) {
+    long long fd = open(filename,O_RDONLY);
+    if (fd == -1) {
+        printf("load failed");
+        exit(1);
+    }
+
+    long long size = 0;
+    if (read(fd, &size, sizeof(long long)) != sizeof(long long)) {
+        printf("Read size failed\n");
+        exit(1);
+    }
+    
+    long long* base = malloc(size);
+    if (!base) {
+        printf("Malloc failed\n");
+        exit(1);
+    }
+
+    read(fd,base,size);
+    close(fd);
 
     struct c4vm vm = {
-        .bp   = sizeof(text) / sizeof(long long),
-        .sp   = sizeof(text) / sizeof(long long),
+        .bp   = size / sizeof(long long),
+        .sp   = size / sizeof(long long),
         .pc   = 0,
         .reg  = 0,
-        .base = text,
+        .base = base,
     };
-    run(&vm);
+
+    long long exit_addr = (vm.sp - 1) * 8;
+    vm.base[--vm.sp] = EXIT;
+    vm.base[--vm.sp] = argc;
+    vm.base[--vm.sp] = (long long)argv - (long long)vm.base;
+    vm.base[--vm.sp] = exit_addr;
+
+    return run(&vm);
 }
 
-void fib_demo() {
-    long long text[4096] = {
-        IMM,680997,PSH,
-        IMM,8 * (4096 - 1),PSH,
-        IMM,5,PSH, // fib(5)
-        JSR,18,ADJ,1,PSH,
-        PRTF,ADJ,2,
-        EXIT,
-
-        ENT,0,
-        IMM,1,PSH,
-        LEA,16,LI,
-        GE,
-
-        BZ,32,
-
-        IMM,1,
-        LEV,
-
-        LEA,16,LI,PSH,IMM,1,SUB,PSH,
-        JSR,18,ADJ,1,PSH,
-        LEA,16,LI,PSH,IMM,2,SUB,PSH,
-        JSR,18,ADJ,1,PSH,
-        IMM,0,ADD,ADD,
-        LEV,
-    };
-
-    struct c4vm vm = {
-        .bp = 4096,
-        .pc = 0,
-        .base = text,
-        .sp = 4096,
-        .reg = 0,
-    };
-
-    run(&vm);
-}
-
-int main() {
+int main(int argc,char** argv) {
     load("out.vm");
-
     return 0;
 }
