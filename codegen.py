@@ -494,6 +494,14 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["SUB"]))
 
+    elif astnode.nodeType in ["eq","ne","lt","gt","le","ge"]:
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+        codegen_action(lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(rhs)
+        ctx.image.extend(i64(opcode[astnode.nodeType.upper()]))
+
     elif astnode.nodeType == "actions":
         codegen_actions(ctx,astnode)
 
