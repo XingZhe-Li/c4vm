@@ -635,7 +635,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
                 elemsize = type_size(ltype.oftype)
                 ctx.image.extend(i64(opcode["PSH"]))
                 ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
-                ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
+                ctx.image.extend(i64(opcode["MUL"]) + i64(astnode.nodeType.upper()))
 
         lhs   = astnode.children[0]
         solve_addr(lhs)
