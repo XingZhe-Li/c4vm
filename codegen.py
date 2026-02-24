@@ -506,26 +506,26 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         rhs = astnode.children[1]
         
-        codegen_action(lhs)
+        codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["BZ"]))
         bz_pos = ctx.image.extend(i64(0))
-        codegen_action(rhs)
-        ctx.image.block[bz_pos:bz_pos + 8] = len(ctx.image.block)
+        codegen_action(ctx,rhs)
+        ctx.image.block[bz_pos:bz_pos + 8] = i64(len(ctx.image.block))
 
     elif astnode.nodeType == "or":
         lhs = astnode.children[0]
         rhs = astnode.children[1]
         
-        codegen_action(lhs)
+        codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["BNZ"]))
         bz_pos = ctx.image.extend(i64(0))
-        codegen_action(rhs)
-        ctx.image.block[bz_pos:bz_pos + 8] = len(ctx.image.block)
+        codegen_action(ctx,rhs)
+        ctx.image.block[bz_pos:bz_pos + 8] = i64(len(ctx.image.block))
 
     elif astnode.nodeType == "not":
         lhs = astnode.children[0]
         ctx.image.extend(i64(opcode["IMM"]) + i64(1) + i64(opcode["PSH"]))
-        codegen_action(lhs)
+        codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["SUB"]))
 
     elif astnode.nodeType == "actions":
