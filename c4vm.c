@@ -225,8 +225,9 @@ long long load_mem(long long* base,long long space) {
         .base = base,
     };
 
-    long long exit_addr = (vm.sp - 1) * 8;
+    long long exit_addr = (vm.sp - 2) * 8;
     vm.base[--vm.sp] = EXIT;
+    vm.base[--vm.sp] = PSH;
     vm.base[--vm.sp] = exit_addr;
     
     return run(&vm);
@@ -310,8 +311,9 @@ long long load_with_args(char* filename,long long argc,char** argv) {
         .base = base,
     };
 
-    long long exit_addr = (vm.sp - 1) * 8;
+    long long exit_addr = (vm.sp - 2) * 8;
     vm.base[--vm.sp] = EXIT;
+    vm.base[--vm.sp] = PSH;
     vm.base[--vm.sp] = argc;
     vm.base[--vm.sp] = (long long)argv - (long long)vm.base;
     vm.base[--vm.sp] = exit_addr;
