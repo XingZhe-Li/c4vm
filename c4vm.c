@@ -329,5 +329,7 @@ void fib_demo() {
 }
 
 int main() {
+    load("out.vm");
+
     return 0;
 }

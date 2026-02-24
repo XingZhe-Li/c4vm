@@ -1,3 +1,4 @@
 int main() {
-    ((char*)vm->base);
+    printf("Hello!");
+    exit(1);
 }

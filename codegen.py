@@ -5,8 +5,8 @@ from parser import SymTable
 opcode_text = '''
 NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
 OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
-FADD,FSUB,FMUL,FDIV,I2F ,F2I ,
-OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT
+FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,
+OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF
 '''
 
 opcode = {v.strip() : i for i,v in enumerate(opcode_text.split(','))}
@@ -131,6 +131,9 @@ def codegen_function(ctx : CodegenContext, astnode : ASTNode):
     # navigate entry point JMP to this function
     function_name , func_type, func_symtable = astnode.metas # missed 1 symtable here?!
 
+    # align .text with 8 bytes
+    ctx.allocator.backend.align(8) # at this point , allocator is still an image allocator
+
     ent_pos = ctx.image.extend(
         i64(opcode["ENT"]) + i64(0)
     )
@@ -168,6 +171,8 @@ def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
     ctx = CodegenContext(
         ctx.image,ctx.literalpool,new_allocator,symtable
     )
+    
+    # build symbol table for scope
     symdict = symtable.mapper
     for var_name_tuple , (var_type,typeinfo) in symdict.items():
         if var_type != 'var':
@@ -175,9 +180,63 @@ def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
         typeinfo : C_Var
         var_type = typeinfo.oftype
         var_name = var_name_tuple[0]
-        new_allocator.allocspace(var_name,type_size(var_type))
+        new_allocator.allocspace(var_name,type_size(var_type))    
+
+    # compile actions here !!!! WIP
+    for action_ast in astnode.children:
+        codegen_action(ctx,action_ast)
+
+builtin_funcs = {
+    'open':'OPEN', 'read': 'READ', 'close': 'CLOSE',
+    'printf':'PRTF',  'malloc':'MALC', 'free':'FREE',
+    'memset':'MSET',  'memcpy':'MCPY', 'memcmp':'MCMP',
+    'exit': 'EXIT',   'strcmp':'SCMP', 'strlen':'SLEN',
+    'strstr': 'SSTR', 'strcat':'SCAT', 'scanf': 'SCNF'
+}
+
+def codegen_builtin_funcs(ctx : CodegenContext, astnode: ASTNode):
+    func_ast  : ASTNode = astnode.children[0]
+    args_cnt  = len(astnode.children) - 1
+    func_name = func_ast.metas[0]
+    
+    opcode_name = builtin_funcs[func_name]
+    ctx.image.extend(
+        i64(opcode[opcode_name]) \
+        + i64(opcode['ADJ']) \
+        + i64(args_cnt)
+    )
+
+def codegen_action(ctx : CodegenContext,astnode : ASTNode):
+    if astnode.nodeType == "call":
+        func_ast  : ASTNode = astnode.children[0]
+        args_asts : ASTNode = astnode.children[1:]
+
+        for arg_ast in args_asts:
+            codegen_action(ctx,arg_ast)
+            ctx.image.extend(i64(opcode["PSH"]))
+
+        if func_ast.nodeType == "var": # calling with function name
+            func_name = func_ast.metas[0]
+            if func_name in builtin_funcs:
+                codegen_builtin_funcs(ctx,astnode)    
+            else:
+                bktype , func_pos = ctx.allocator.get(func_name)
+                if bktype == "stack":
+                    ctx.image.extend(i64(opcode["LEA"]) + i64(func_pos))
+                    ctx.image.extend(i64(opcode["LI"])  + i64(opcode["JSRR"]))
+                    ctx.image.extend(i64(opcode["ADJ"]) + i64(len(args_asts)))
+                elif bktype == "image":
+                    ctx.image.extend(i64(opcode["JSR"]) + i64(func_pos))
+                    ctx.image.extend(i64(opcode["ADJ"]) + i64(len(args_asts)))
+        # TODO: otherwise call with evaluated pointer
+
+    elif astnode.nodeType == "string":
+        literal = astnode.metas[0]
+        image_pos = ctx.literalpool.alloc(literal)
+        ctx.image.extend(i64(opcode["IMM"]) + i64(image_pos))
 
 def i8(x : int) -> bytes:
+
     return x.to_bytes(1,'little',signed=True)
 
 def i64(x : int) -> bytes:
