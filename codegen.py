@@ -465,6 +465,20 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     elif astnode.nodeType == "actions":
         codegen_actions(ctx,astnode)
 
+    elif astnode.nodeType == "sizeof":
+        child : ASTNode = astnode.children[0]
+        if child.nodeType == "var":
+            var_name = child.metas[0]
+            sztypetype , sztype = ctx.symtable.get((var_name,))
+            sztype : C_Var
+            sztype = sztype.oftype
+        elif child.nodeType == "as":
+            sztype = child.metas[0]
+        size = type_size(sztype)
+        ctx.image.extend(i64(opcode["IMM"]) + i64(size))
+
+    elif astnode.nodeType == "ret":
+        ...
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
         lst_ast : ASTNode = astnode.children[1]
@@ -693,11 +707,12 @@ def allocvar(ctx : CodegenContext, sym : str, vartype : Any):
 def poolinit(ctx : CodegenContext ,astnode : ASTNode):
 
     def traverse(node : ASTNode):
+        if node.nodeType == "sizeof":
+            return
         if node.nodeType == "string":
             ctx.literalpool.alloc(node.metas[0])
         for child in node.children:
             traverse(child)
-
     traverse(astnode)
 
 def static_init(ctx : CodegenContext, astroot : ASTNode):
