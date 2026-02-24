@@ -139,6 +139,9 @@ def program(ctx : CodegenContext,astnode : ASTNode):
     static_init(ctx,astnode)         # fill in init data for static vars
     codegen_functions(ctx,astnode)
 
+    print('allocator.symmap  : ',ctx.allocator.symmap)
+    print('literalpool.mapper: ',ctx.literalpool.mapper)
+
 def codegen_functions(ctx: CodegenContext, astroot : ASTNode):
     for astnode in astroot.children:
         if astnode.nodeType != "function":
