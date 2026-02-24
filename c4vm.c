@@ -46,22 +46,22 @@ long long run(struct c4vm* vm) {
         } else if (opcode == JMP) {
             vm->pc  = vm->base[vm->pc] / 8;
         } else if (opcode == JSR) {
-            vm->base[--vm->sp] = vm->pc+1;
+            vm->base[--vm->sp] = (vm->pc+1) * 8;
             vm->pc = vm->base[vm->pc++] / 8;
         } else if (opcode == BZ) {
             vm->pc  = vm->reg ? vm->pc + 1 : vm->base[vm->pc];
         } else if (opcode == BNZ) {
             vm->pc  = vm->reg ? vm->base[vm->pc] : vm->pc + 1;
         } else if (opcode == ENT) {
-            vm->base[--vm->sp] = vm->bp;
+            vm->base[--vm->sp] = vm->bp * 8;
             vm->bp  = vm->sp;
             vm->sp -= vm->base[vm->pc++];
         } else if (opcode == ADJ) {
             vm->sp += vm->base[vm->pc++];
         } else if (opcode == LEV) {
             vm->sp = vm->bp;
-            vm->bp = vm->base[vm->sp++];
-            vm->pc = vm->base[vm->sp++];
+            vm->bp = vm->base[vm->sp++] / 8;
+            vm->pc = vm->base[vm->sp++] / 8;
         } else if (opcode == LI) {
             vm->reg = *(long long*)((char*)vm->base + vm->reg);
         } else if (opcode == LC) {
@@ -208,6 +208,11 @@ long long run(struct c4vm* vm) {
             printf("unknown instruction = %lld!\n",opcode);
 #endif
         }
+        
+        // FOR DEBUG
+        // printf("vm->sp = %lld (%lld,%lld,%lld) , ",vm->sp,vm->base[vm->sp],vm->base[vm->sp+1],vm->base[vm->sp+2]);
+        // printf("vm->pc = %lld (%lld,%lld,%lld)",vm->pc,vm->base[vm->pc],vm->base[vm->pc+1],vm->base[vm->pc+2]);
+        // getchar();
     }
 }
 
@@ -223,7 +228,7 @@ long long load_mem(long long* base,long long space) {
     long long exit_addr = (vm.sp - 1) * 8;
     vm.base[--vm.sp] = EXIT;
     vm.base[--vm.sp] = exit_addr;
-
+    
     return run(&vm);
 }
 
