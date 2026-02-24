@@ -17,7 +17,7 @@ enum OPCODES {
     NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
     FADD,FSUB,FMUL,FDIV,I2F ,F2I ,
-    OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,OPCODE_END
+    OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,OPCODE_END
 };
 
 int OPCODE_LEN = sizeof(enum OPCODES);
@@ -189,6 +189,9 @@ long long run(struct c4vm* vm) {
             vm->reg = (long long)((void*)strstr((char *)vm->base + vm->base[vm->sp + 1],(char *)vm->base + vm->base[vm->sp]) - (void*)vm->base);
         } else if (opcode == SCAT) {
             vm->reg = (long long)((void*)strcat((char *)vm->base + vm->base[vm->sp + 1],(char *)vm->base + vm->base[vm->sp]) - (void*)vm->base);
+        } else if (opcode == SCNF) {
+            long long arg_offset = vm->sp + vm->base[vm->pc + 1];
+            vm->reg = scanf((char*)vm->base + vm->base[arg_offset-1],(char*)vm->base + vm->base[arg_offset-1],(char*)vm->base + vm->base[arg_offset-2],(char*)vm->base + vm->base[arg_offset-3],(char*)vm->base + vm->base[arg_offset-4],(char*)vm->base + vm->base[arg_offset-5],(char*)vm->base + vm->base[arg_offset-6]);
         }
         
         // Unknown instruction
