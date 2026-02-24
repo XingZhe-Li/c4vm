@@ -484,11 +484,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "bitnot":
         lhs = astnode.children[0]
-        rhs = astnode.children[1]
-
         codegen_action(ctx,lhs)
-        ctx.image.extend(i64(opcode["PSH"]))
-        codegen_action(ctx,rhs)
         ctx.image.extend(i64(opcode["NOT"]))
 
     elif astnode.nodeType == "neg":
