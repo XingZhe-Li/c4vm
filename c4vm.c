@@ -44,10 +44,10 @@ long long run(struct c4vm* vm) {
         } else if (opcode == IMM) {
             vm->reg = vm->base[vm->pc++];
         } else if (opcode == JMP) {
-            vm->pc  = vm->base[vm->pc];
+            vm->pc  = vm->base[vm->pc] / 8;
         } else if (opcode == JSR) {
             vm->base[--vm->sp] = vm->pc+1;
-            vm->pc = vm->base[vm->pc++];
+            vm->pc = vm->base[vm->pc++] / 8;
         } else if (opcode == BZ) {
             vm->pc  = vm->reg ? vm->pc + 1 : vm->base[vm->pc];
         } else if (opcode == BNZ) {
@@ -147,10 +147,10 @@ long long run(struct c4vm* vm) {
 
         // JMP with Register
         else if (opcode == JREG) {
-            vm->pc  = vm->reg;
+            vm->pc  = vm->reg / 8;
         } else if (opcode == JSRR) {
             vm->base[--vm->sp] = vm->pc+1;
-            vm->pc = vm->reg;
+            vm->pc = vm->reg  / 8;
         }
 
         // Library functions
