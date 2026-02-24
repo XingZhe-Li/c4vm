@@ -478,7 +478,10 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         ctx.image.extend(i64(opcode["IMM"]) + i64(size))
 
     elif astnode.nodeType == "ret":
-        ...
+        if astnode.children[0] is not None:
+            codegen_action(ctx,astnode.children[0])
+        ctx.image.extend(i64(opcode["LEV"]))
+
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
         lst_ast : ASTNode = astnode.children[1]
@@ -707,6 +710,8 @@ def allocvar(ctx : CodegenContext, sym : str, vartype : Any):
 def poolinit(ctx : CodegenContext ,astnode : ASTNode):
 
     def traverse(node : ASTNode):
+        if node is None:
+            return
         if node.nodeType == "sizeof":
             return
         if node.nodeType == "string":
