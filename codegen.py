@@ -396,19 +396,47 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         rhs = astnode.children[1]
 
-        codegen_action(ctx,lhs)
-        ctx.image.extend(i64(opcode["PSH"]))
-        codegen_action(ctx,rhs)
-        ctx.image.extend(i64(opcode["ADD"]))
+        ltype = unpack_C_Var(ast_type(ctx,lhs))
+        rtype = unpack_C_Var(ast_type(ctx,lhs))
+        if type(rtype) == C_Pointer:
+            lhs  ,rhs   = rhs  ,lhs
+            ltype,rtype = rtype,ltype
+        if type(ltype) == C_Pointer:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            elemsize = type_size(ltype.oftype)
+            ctx.image.extend(i64(opcode["PSH"]))
+            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
+            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
+        else:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["ADD"]))
 
     elif astnode.nodeType == "sub":
         lhs = astnode.children[0]
         rhs = astnode.children[1]
 
-        codegen_action(ctx,lhs)
-        ctx.image.extend(i64(opcode["PSH"]))
-        codegen_action(ctx,rhs)
-        ctx.image.extend(i64(opcode["SUB"]))
+        ltype = unpack_C_Var(ast_type(ctx,lhs))
+        rtype = unpack_C_Var(ast_type(ctx,lhs))
+        if type(rtype) == C_Pointer:
+            lhs  ,rhs   = rhs  ,lhs
+            ltype,rtype = rtype,ltype
+        if type(ltype) == C_Pointer:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            elemsize = type_size(ltype.oftype)
+            ctx.image.extend(i64(opcode["PSH"]))
+            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
+            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["SUB"]))
+        else:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["SUB"]))
 
     elif astnode.nodeType == "mul":
         lhs = astnode.children[0]
@@ -745,13 +773,13 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
                 if type(rtype) == C_Pointer:
                     lhs  ,rhs   = rhs  ,lhs
                     ltype,rtype = rtype,ltype
-                solve_addr(lhs)
+                codegen_action(ctx,lhs)
                 ctx.image.extend(i64(opcode["PSH"]))
                 codegen_action(ctx,rhs)
                 elemsize = type_size(ltype.oftype)
                 ctx.image.extend(i64(opcode["PSH"]))
                 ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
-                ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
+                ctx.image.extend(i64(opcode["MUL"]) + i64(opcode[astnode.nodeType.upper()]))
 
         solve_addr(lhs)
         ctx.image.extend(i64(opcode["PSH"]))
