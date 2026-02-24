@@ -306,6 +306,76 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
                 ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
                 ctx.image.extend(i64(opcode["LI"]))
 
+    elif astnode.nodeType == "add":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["ADD"]))
+
+    elif astnode.nodeType == "sub":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["SUB"]))
+
+    elif astnode.nodeType == "mul":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["MUL"]))
+
+    elif astnode.nodeType == "div":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["DIV"]))
+
+    elif astnode.nodeType == "mod":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["MOD"]))
+
+    elif astnode.nodeType == "shl":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["SHL"]))
+
+    elif astnode.nodeType == "shr":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode["SHR"]))
+
+    elif astnode.nodeType == "neg":
+        lhs = astnode.children[0]
+
+        ctx.image.extend(i64(opcode["IMM"]) + i64(0) + i64(opcode["PSH"]))
+        codegen_action(ctx,lhs)
+        ctx.image.extend(i64(opcode["SUB"]))
+
 def i8(x : int) -> bytes:
 
     return x.to_bytes(1,'little',signed=True)
