@@ -244,6 +244,15 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
         var_name = astnode.metas[0]
         var_type_type , var_type = ctx.symtable.get((var_name,))
         return var_type
+    # basic types
+    elif astnode.nodeType == "integer":
+        return C_Basetype("long long")
+    elif astnode.nodeType == "float":
+        return C_Basetype("double")
+    elif astnode.nodeType == "string":
+        return C_Pointer(C_Basetype("char"))
+    
+
     # other evaluations
 
 def codegen_action(ctx : CodegenContext,astnode : ASTNode):
@@ -376,8 +385,27 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["SUB"]))
 
-def i8(x : int) -> bytes:
+    elif astnode.nodeType == "assign":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
 
+        def solve_addr(ctx: CodegenContext, astnode : ASTNode):
+            if astnode.nodeType == "var":
+                var_name = astnode.metas[0]
+                var_section , var_pos = ctx.allocator.get(var_name)
+                if var_section == "image":
+                    ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
+                elif var_section == "stack":
+                    ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+            elif astnode.nodeType == "deaddr":
+                solve_addr(ctx,astnode.children[0])
+                ctx.image.extend(i64(opcode["LI"]))
+            elif astnode.nodeType == "attr":
+                attr_name = astnode.metas[0]
+                solve_addr(ctx,astnode.children[0])
+                # WIP: stopped here
+
+def i8(x : int) -> bytes:
     return x.to_bytes(1,'little',signed=True)
 
 def i64(x : int) -> bytes:
