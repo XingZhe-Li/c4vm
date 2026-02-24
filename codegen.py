@@ -227,6 +227,22 @@ def codegen_builtin_funcs(ctx : CodegenContext, astnode: ASTNode):
         + i64(args_cnt)
     )
 
+def ast_type(ctx: CodegenContext,astnode : ASTNode):
+    '''None for unknown'''
+
+    if astnode.nodeType == "call":
+        func_ast : ASTNode = astnode.children[0]
+        if func_ast.nodeType == "var":
+            func_name = func_ast.metas[0]
+            _ , func_type = ctx.symtable.get((func_name,))
+            func_type : C_Func
+            ret_type = func_type.rettype
+            return ret_type
+        else:
+            return None
+        
+    # other evaluations
+
 def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     if astnode.nodeType == "call":
         func_ast  : ASTNode = astnode.children[0]
