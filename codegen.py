@@ -265,7 +265,11 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
                 elif bktype == "image":
                     ctx.image.extend(i64(opcode["JSR"]) + i64(func_pos))
                     ctx.image.extend(i64(opcode["ADJ"]) + i64(len(args_asts)))
-        # TODO: otherwise call with evaluated pointer
+        else:
+            # otherwise call with evaluated address
+            codegen_action(ctx,func_ast)
+            ctx.image.extend(i64(opcode["JSRR"]))
+            ctx.image.extend(i64(opcode["ADJ"]) + i64(len(args_asts)))
 
     elif astnode.nodeType == "string":
         literal = astnode.metas[0]
