@@ -115,8 +115,8 @@ def entry(astroot: ASTNode) -> bytes:
 def disasm(image: bytearray):
     rev_opcode = {v: k for k, v in opcode.items()}
     
-    print(f"{'Addr':<6} | {'Opcode':<8} | {'Value (Dec)':<15} | {'Hex':<18} | {'Raw Bytes'}")
-    print("-" * 75)
+    print(f"{'Addr':<6} | {'Opcode':<8} | {'Value (Dec)':<24} | {'Hex':<24} | {'Raw Bytes'}")
+    print("-" * 84)
 
     for idx in range(0, len(image), 8):
         bs = image[idx:idx+8]
@@ -131,7 +131,7 @@ def disasm(image: bytearray):
         else:
             display_op = f"(data)"
 
-        print(f"{idx:<6} | {display_op:<8} | {decimal:<15} | {hex_val:<18} | {ascii_repr}")
+        print(f"{idx:<6} | {display_op:<8} | {decimal:<24} | {hex_val:<24} | {ascii_repr}")
 
 def program(ctx : CodegenContext,astnode : ASTNode):
     program_symtab_init(ctx,astnode) # alloc static space for variables
