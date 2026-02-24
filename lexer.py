@@ -157,7 +157,7 @@ def tokenize(src: str) -> list[Token]:
                 tokens[tidx].value += buf
             else:
                 tokens.append(Token("string",buf,line_cnt))
-        elif chr in "+-*/^&|!<>=~":
+        elif chr in "+-*/^&|!<>=~%":
             idx += 1
             if idx < len(src) and src[idx] == "=":
                 # >= <= != == &= +=
