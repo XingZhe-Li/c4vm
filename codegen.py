@@ -160,6 +160,7 @@ def codegen_function(ctx : CodegenContext, astnode : ASTNode):
     # fill in ENT for stack allocation
     ctx.allocator.backend.align(8)
     ctx.image.block[ent_pos + 8:ent_pos + 16] = i64(ctx.allocator.backend.end() // 8)
+    ctx.image.extend(i64(opcode["LEV"]))
 
 def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
     symtable : SymTable = astnode.metas[0]
