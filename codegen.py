@@ -629,7 +629,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
                 if type(rtype) == C_Pointer:
                     lhs  ,rhs   = rhs  ,lhs
                     ltype,rtype = rtype,ltype
-                solve_addr(lhs)
+                codegen_action(ctx,lhs)
                 ctx.image.extend(i64(opcode["PSH"]))
                 codegen_action(ctx,rhs)
                 elemsize = type_size(ltype.oftype)
