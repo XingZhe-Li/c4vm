@@ -227,8 +227,14 @@ def codegen_builtin_funcs(ctx : CodegenContext, astnode: ASTNode):
         + i64(args_cnt)
     )
 
+def unpack_C_Var(x: C_Var):
+    if type(x) == C_Var:
+        return x.oftype
+    return x
+
 def ast_type(ctx: CodegenContext,astnode : ASTNode):
     '''None for unknown'''
+    print('ast_type',astnode)
 
     if astnode.nodeType == "call":
         func_ast : ASTNode = astnode.children[0]
@@ -251,11 +257,72 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
         return C_Basetype("double")
     elif astnode.nodeType == "string":
         return C_Pointer(C_Basetype("char"))
-    
+    elif astnode.nodeType in ["incret","decret","retinc","retdec","neg"]:
+        return ast_type(ctx,astnode.children[0])
+    elif astnode.nodeType in ["mod","shl","shr","bitand","bitor",
+                              "bitxor","bitnot""and","or","not"]:
+        return C_Basetype("long long")
+    elif astnode.nodeType in ["add","sub","mul","div"]:
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+        ltype = unpack_C_Var(ast_type(ctx,lhs))
+        rtype = unpack_C_Var(ast_type(ctx,rhs))
 
-    # other evaluations
+        if type(ltype) == C_Basetype and ltype.typename in ['float','double']:
+            return C_Basetype("double")
+        if type(rtype) == C_Basetype and rtype.typename in ['float','double']:
+            return C_Basetype("double")
+        return C_Basetype("long long")
+    elif astnode.nodeType == "assign":
+        lhs = astnode.children[0]
+        return ast_type(ctx,lhs)
+    elif astnode.nodeType == "comma":
+        rhs = astnode.children[1]
+        return ast_type(ctx,rhs)
+    elif astnode.nodeType == "sizeof":
+        return C_Basetype("long long")
+    elif astnode.nodeType == "attr":
+        lhs = astnode.children[0]
+        ltype = unpack_C_Var(ast_type(ctx,lhs))
+        field_name = astnode.metas[0]
+        field_offset, field_type = struct_offset(ltype,field_name)
+        return field_type
+    elif astnode.nodeType == "ptr_attr":
+        lhs = astnode.children[0]
+        ltype = unpack_C_Var(ast_type(ctx,lhs))
+        if type(ltype) == C_Pointer:
+            ltype = ltype.oftype
+        field_name = astnode.metas[0]
+        field_offset, field_type = struct_offset(ltype,field_name)
+        return field_type
+    elif astnode.nodeType == "index":
+        arr_ast = astnode.children[0]
+        idx_ast = astnode.children[1]
+        ltype = unpack_C_Var(ast_type(ctx,arr_ast))
+        if type(ltype) == C_Pointer:
+            return ltype.oftype
+        elif type(ltype) == C_Array:
+            if len(ltype.dimension) == 1:
+                return ltype.oftype
+            else:
+                return C_Array(ltype.oftype,ltype.dimension[1:])
+    elif astnode.nodeType == "cond":
+        tast  = astnode.children[1]
+        fast  = astnode.children[2]
+        ttype = unpack_C_Var(ast_type(ctx,tast))
+        ftype = unpack_C_Var(ast_type(ctx,fast))
+        if type(ttype) == C_Basetype and ttype.typename in ["float","double"]:
+            return C_Basetype("double")
+        if type(ftype) == C_Basetype and ttype.typename in ["float","double"]:
+            return C_Basetype("double")
+        return ttype
+    elif astnode.nodeType == "as":
+        astype = astnode.metas[0]
+        return astype
 
 def codegen_action(ctx : CodegenContext,astnode : ASTNode):
+    print('codegen_action',astnode)
+
     if astnode.nodeType == "call":
         func_ast  : ASTNode = astnode.children[0]
         args_asts : ASTNode = astnode.children[1:]
@@ -475,7 +542,7 @@ def struct_offset(struct_type : C_Struct,field_name : str):
         if struct_field_name == field_name:
             return offset , field_type
         offset += type_size(field_type)
-    return offset
+    return offset , None
 
 def struct_idx_offset(struct_type : C_Struct,idx : int):
     offset = 0
