@@ -149,7 +149,7 @@ long long run(struct c4vm* vm) {
         else if (opcode == JREG) {
             vm->pc  = vm->reg / 8;
         } else if (opcode == JSRR) {
-            vm->base[--vm->sp] = vm->pc+1;
+            vm->base[--vm->sp] = (vm->pc+1) * 8;
             vm->pc = vm->reg  / 8;
         }
 
