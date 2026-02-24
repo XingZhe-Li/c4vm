@@ -452,6 +452,60 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["SUB"]))
 
+    elif astnode.nodeType == "actions":
+        codegen_actions(ctx,astnode)
+
+    elif astnode.nodeType == "init_assign":
+        var_ast : ASTNode = astnode.children[0]
+        lst_ast : ASTNode = astnode.children[1]
+
+        var_name = var_ast.metas[0]
+        var_type_type , var_type = ctx.symtable.get((var_name,))
+        var_type = var_type.oftype
+        var_section   , var_pos  = ctx.allocator.get(var_name)# var_section shall only be stack here
+        initlst  = lst_ast.metas[0]
+
+        def assign_element(var_type : Any,val_ast : ASTNode,var_pos : int):
+            if type(var_type) == C_Basetype and var_type.typename in ["unsigned char","char"]:
+                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+                ctx.image.extend(i64(opcode["PSH"]))
+                codegen_action(ctx,val_ast)
+                ctx.image.extend(i64(opcode["SC"]))
+            else:
+                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+                ctx.image.extend(i64(opcode["PSH"]))
+                codegen_action(ctx,val_ast)
+                ctx.image.extend(i64(opcode["SI"]))
+
+        def init_assign(var_type: Any,content: list[tuple],var_pos: int):
+            if type(var_type) == C_Array:
+                if len(var_type.dimension) == 1:
+                    childtype = var_type.oftype
+                else:
+                    childtype = C_Array(var_type.oftype,var_type.dimension[1:])
+                childsize = type_size(childtype)
+                for idx,elemast in content:
+                    elemast : ASTNode # should be a "initlist"
+                    if elemast.nodeType == "initlist":
+                        init_assign(childtype,elemast.metas[0],var_pos + idx * childsize)
+                    else:
+                        init_assign(childtype,elemast,var_pos + idx * childsize)
+            elif type(var_type) == C_Struct:
+                for idx,elemast in content:
+                    if type(idx) == int:
+                        field_offset , field_type = struct_idx_offset(var_type,idx)
+                    elif type(idx) == str:
+                        field_offset , field_type = struct_offset(var_type,idx)
+                    if elemast.nodeType == "initlist":
+                        initlst = elemast.metas[0]
+                        init_assign(field_type,initlst,var_pos + field_offset)
+                    else:
+                        init_assign(field_type,elemast,var_pos + field_offset)
+            else:
+                assign_element(var_type,content,var_pos)        
+        
+        init_assign(var_type,initlst,var_pos)
+
     elif astnode.nodeType == "assign":
         lhs = astnode.children[0]
         rhs = astnode.children[1]
