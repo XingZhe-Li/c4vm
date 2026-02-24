@@ -20,6 +20,8 @@ all arguments are resized to 8 bytes when passed as a parameter!
 goto is not supported!
 
 static / const are not supported!
+
+auto type conversion like int x = y;
 ```
 
 ASTNode Types:
