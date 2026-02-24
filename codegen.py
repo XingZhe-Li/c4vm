@@ -528,6 +528,12 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["SUB"]))
 
+    elif astnode.nodeType == "comma":
+        lhs = astnode.children[0]
+        rhs = astnode.children[1]
+        codegen_action(ctx,lhs)
+        codegen_action(ctx,rhs)
+
     elif astnode.nodeType == "actions":
         codegen_actions(ctx,astnode)
 
