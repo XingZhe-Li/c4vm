@@ -174,7 +174,7 @@ def codegen_function(ctx : CodegenContext, astnode : ASTNode):
     arg_count = len(func_type.argtype)
     for idx , (arg_type, arg_name) in enumerate(func_type.argtype):
         # all arguments are resized to 8 when passed as a parameter!
-        new_allocator.symmap[arg_name] = 8 * (arg_count - 1 - idx) + 16
+        new_allocator.symmap[arg_name] = ("stack",8 * (arg_count - 1 - idx) + 16)
 
     ctx = CodegenContext(
         ctx.image,ctx.literalpool,new_allocator,func_symtable
