@@ -271,7 +271,7 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
     
     # otherwise we are declaring a variable
     else:
-        rootnode = ASTNode("actions",[],())
+        rootnode = ASTNode("actions",[],(symTable,))
         while True:
             var_type , var_name = parseType(idx,tokens,symTable,basetype)
             symTable.set((var_name,),("var",C_Var(var_type)))
