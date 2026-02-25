@@ -780,6 +780,17 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         ctx.image.extend(i64(opcode["IMM"]) + i64(1))
         ctx.image.extend(i64(opcode["ADD"]))
 
+    elif astnode.nodeType == "as":
+        child       = astnode.children[0]
+        target_type = astnode.metas[0]
+        etype       = unpack_C_Var(ast_type(ctx,child))
+        if type(etype) == C_Basetype and etype.typename in ["float","double"]:
+            if type(target_type) == C_Basetype and target_type.typename not in ["float","double"]:
+                ctx.image.extend(i64("F2I"))
+        else:
+            if type(target_type) == C_Basetype and target_type.typename in ["float","double"]:
+                ctx.image.extend(i64("I2F"))
+
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
         lst_ast : ASTNode = astnode.children[1]
