@@ -709,7 +709,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "not":
         lhs = astnode.children[0]
-        ctx.image.extend(i64(opcode["IMM"]) + i64(1) + i64(opcode["PSH"]))
+        ctx.image.extend(i64(opcode["IMM"]) + i64(0) + i64(opcode["PSH"]))
         codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["SUB"]))
 
