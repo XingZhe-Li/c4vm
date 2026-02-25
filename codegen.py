@@ -396,7 +396,7 @@ def solve_addr(ctx: CodegenContext,astnode : ASTNode):
         ctx.image.extend(i64(opcode["ADD"]))
     elif astnode.nodeType == "string":
         literal_str = astnode.metas[0]
-        var_section , var_pos = ctx.literalpool.alloc(literal_str) # shall only be on image
+        var_pos = ctx.literalpool.alloc(literal_str) # shall only be on image
         ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
 
 def codegen_action(ctx : CodegenContext,astnode : ASTNode):
