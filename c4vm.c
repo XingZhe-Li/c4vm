@@ -172,6 +172,20 @@ long long run(struct c4vm* vm) {
 #endif
         } else if (opcode == PRTF) {
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
+            long long argpos = 2;
+            for (
+                char *p=(char*)vm->base + vm->base[arg_offset-1];
+                *p != '\0';
+                p++
+            ) {
+                if (argpos > 6) break;
+                if (*p == '%') {
+                    if (*(p + 1) == 's') {
+                        vm->base[arg_offset-argpos] += (long long)vm->base;
+                    }
+                    argpos ++;
+                }
+            }
             vm->reg = printf((char*)vm->base + vm->base[arg_offset-1],vm->base[arg_offset-2],vm->base[arg_offset-3],vm->base[arg_offset-4],vm->base[arg_offset-5],vm->base[arg_offset-6]);
         } else if (opcode == MALC) {
             vm->reg = (long long) malloc(vm->base[vm->sp]) - (long long)vm->base;
