@@ -474,7 +474,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         rhs = astnode.children[1]
 
         ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,lhs))
+        rtype = unpack_C_Var(ast_type(ctx,rhs))
 
         ltype_is_pointer = type(ltype) == C_Pointer
         rtype_is_pointer = type(rtype) == C_Pointer
