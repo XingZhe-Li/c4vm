@@ -820,7 +820,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         ctx.image.extend(i64(opcode["JMP"]))
         ctx.image.extend(i64(loop_dest))
         exit_dest = len(ctx.image.block)
-        ctx.image.block[exit_pos:exit_pos + 8] = exit_dest
+        ctx.image.block[exit_pos:exit_pos + 8] = i64(exit_dest)
 
         for cont_pos in ctx.flowCtx.continue_pos_lst:
             ctx.image.block[cont_pos: cont_pos + 8] = i64(loop_dest)
@@ -852,6 +852,32 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "for":
         init_ast , cond_ast , inc_ast , loop_ast = astnode.children
+        
+        oldctx = ctx
+        ctx = CodegenContext(
+            ctx.image,ctx.literalpool,ctx.literalpool,ctx.symtable,
+            FlowContext([],[])
+        )
+
+        codegen_action(init_ast)
+        loop_dest = len(ctx.image.block)
+        codegen_action(cond_ast)
+        ctx.image.extend(i64(opcode["BZ"]))
+        exit_pos  = ctx.image.extend(i64(0))
+        codegen_action(loop_ast)
+        inc_dest  = len(ctx.image.block)
+        codegen_action(inc_ast)
+        ctx.image.extend(i64(opcode["JMP"]))
+        ctx.image.extend(i64(loop_dest))
+        exit_dest = len(ctx.image.block)
+        ctx.image.block[exit_pos:exit_pos + 8] = i64(exit_dest)
+
+        for cont_pos in ctx.flowCtx.continue_pos_lst:
+            ctx.image.block[cont_pos: cont_pos + 8] = i64(inc_dest)
+
+        for brk_pos in ctx.flowCtx.break_pos_lst:
+            ctx.image.block[brk_pos: brk_pos + 8] = i64(exit_dest)
+
 
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
