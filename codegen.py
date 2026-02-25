@@ -521,7 +521,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         rhs = astnode.children[1]
 
         ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,lhs))
+        rtype = unpack_C_Var(ast_type(ctx,rhs))
 
         ltype_is_pointer = type(ltype) == C_Pointer
         rtype_is_pointer = type(rtype) == C_Pointer
@@ -567,7 +567,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         rhs = astnode.children[1]
         ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,lhs))
+        rtype = unpack_C_Var(ast_type(ctx,rhs))
 
         ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
         rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
@@ -595,7 +595,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         rhs = astnode.children[1]
         ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,lhs))
+        rtype = unpack_C_Var(ast_type(ctx,rhs))
 
         ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
         rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
