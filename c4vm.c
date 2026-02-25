@@ -348,8 +348,12 @@ long long load_with_args(char* filename,long long argc,char** argv) {
     long long exit_addr = (vm.sp - 2) * 8;
     vm.base[--vm.sp] = EXIT;
     vm.base[--vm.sp] = PSH;
+    for (int i = argc - 1 ; i >= 0 ; i --) {
+        vm.base[--vm.sp] = (long long)argv[i] - (long long)vm.base;
+    }
+    long long argv_virt = vm.sp * 8;
     vm.base[--vm.sp] = argc;
-    vm.base[--vm.sp] = (long long)argv - (long long)vm.base;
+    vm.base[--vm.sp] = argv_virt;
     vm.base[--vm.sp] = exit_addr;
 
     return run(&vm);
