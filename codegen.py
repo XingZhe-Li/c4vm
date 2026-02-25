@@ -678,6 +678,80 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         codegen_action(ctx,branch)
         ctx.image.block[fpos:fpos+8] = i64(len(ctx.image.block))
 
+    elif astnode.nodeType == "incret":
+        target = astnode.children[0]
+        target_type = unpack_C_Var(ast_type(target))
+        solve_addr(ctx,target)
+        ctx.image.extend(i64(opcode["PSH"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
+        ctx.image.extend(i64(opcode["PSH"]))
+        ctx.image.extend(i64(opcode["IMM"]) + i64(1))
+        ctx.image.extend(i64(opcode["ADD"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["SC"]))
+        else:
+            ctx.image.extend(i64(opcode["SI"]))
+
+    elif astnode.nodeType == "decret":
+        target = astnode.children[0]
+        target_type = unpack_C_Var(ast_type(target))
+        solve_addr(ctx,target)
+        ctx.image.extend(i64(opcode["PSH"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
+        ctx.image.extend(i64(opcode["PSH"]))
+        ctx.image.extend(i64(opcode["IMM"]) + i64(1))
+        ctx.image.extend(i64(opcode["SUB"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["SC"]))
+        else:
+            ctx.image.extend(i64(opcode["SI"]))
+
+    elif astnode.nodeType == "retinc":
+        target = astnode.children[0]
+        target_type = unpack_C_Var(ast_type(target))
+        solve_addr(ctx,target)
+        ctx.image.extend(i64(opcode["PSH"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
+        ctx.image.extend(i64(opcode["PSH"]))
+        ctx.image.extend(i64(opcode["IMM"]) + i64(1))
+        ctx.image.extend(i64(opcode["ADD"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["SC"]))
+        else:
+            ctx.image.extend(i64(opcode["SI"]))
+        ctx.image.extend(i64(opcode["PSH"]))
+        ctx.image.extend(i64(opcode["IMM"]) + i64(1))
+        ctx.image.extend(i64(opcode["SUB"]))
+
+    elif astnode.nodeType == "retdec":
+        target = astnode.children[0]
+        target_type = unpack_C_Var(ast_type(target))
+        solve_addr(ctx,target)
+        ctx.image.extend(i64(opcode["PSH"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
+        ctx.image.extend(i64(opcode["PSH"]))
+        ctx.image.extend(i64(opcode["IMM"]) + i64(1))
+        ctx.image.extend(i64(opcode["SUB"]))
+        if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["SC"]))
+        else:
+            ctx.image.extend(i64(opcode["SI"]))
+        ctx.image.extend(i64(opcode["PSH"]))
+        ctx.image.extend(i64(opcode["IMM"]) + i64(1))
+        ctx.image.extend(i64(opcode["ADD"]))
+
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
         lst_ast : ASTNode = astnode.children[1]
