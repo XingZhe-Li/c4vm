@@ -14,7 +14,7 @@
 
 // #define C4VM_DEBUG
 #define C4VM_NOWRITE
-// #define C4VM_VERBOSE
+#define C4VM_VERBOSE
 
 struct c4vm {
     long long  pc,bp,sp,reg;
@@ -39,9 +39,11 @@ long long run(struct c4vm* vm) {
                 "fetch opcode = %.4s\n",
                 &"NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
-                "FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,GETC,"
-                "OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,FSTR,SCAT,SCNF,"[opcode * 5]
+                "FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,GETC,"
+                "OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,"[opcode * 5]
             );
+            printf("[PC:%04lld] [SP:%04lld] [BP:%04lld] [REG:0x%llx (%lld)]\n", 
+               vm->pc * 8, vm->sp * 8, vm->bp * 8, vm->reg, vm->reg);
         }
 #endif
         // Basic Operations
