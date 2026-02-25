@@ -649,6 +649,12 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
         retval = expression(idx,tokens,symTable,14)
         match("operator",";")
         return ASTNode("ret",[retval],())
+    elif match("identifier","break"):
+        match("operator",";")
+        return ASTNode("break",[],())
+    elif match("identifier","continue"):
+        match("operator",";")
+        return ASTNode("continue",[],())
     else:
         snapshot = idx.val
         if parseBasetype(idx,tokens,symTable):
