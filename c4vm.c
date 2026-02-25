@@ -356,6 +356,10 @@ long long load_with_args(char* filename,long long argc,char** argv) {
 }
 
 int main(int argc,char** argv) {
-    load_with_args("out.vm",argc,argv);
+    if (argc == 1) {
+        printf("usage:\tc4vm [image]\n");
+    } else {
+        load_with_args(argv[1],argc-1,argv+1);
+    }
     return 0;
 }
