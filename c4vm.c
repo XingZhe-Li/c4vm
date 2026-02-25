@@ -5,6 +5,13 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#ifndef O_RDONLY
+#define O_RDONLY 0x0000
+#define O_CREAT  0x0100
+#define O_WRONLY 0x0001
+#define O_TRUNC  0x0200
+#endif
+
 #define C4VM_DEBUG
 // #define C4VM_VERBOSE
 
@@ -16,7 +23,7 @@ struct c4vm {
 enum OPCODES { 
     NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
-    FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,
+    FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,
     OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,OPCODE_END
 };
 
@@ -216,6 +223,12 @@ long long run(struct c4vm* vm) {
         } else if (opcode == SCNF) {
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
             vm->reg = scanf((char*)vm->base + vm->base[arg_offset-1],(char*)vm->base + vm->base[arg_offset-2],(char*)vm->base + vm->base[arg_offset-3],(char*)vm->base + vm->base[arg_offset-4],(char*)vm->base + vm->base[arg_offset-5],(char*)vm->base + vm->base[arg_offset-6]);
+        } else if (opcode == WRIT) {
+#ifdef C4VM_DEBUG
+            printf("WRIT IS FORBIDDEN WHEN WITH C4VM_DEBUG\n");
+#else
+            vm->reg = write(vm->base[vm->sp + 2],(char*)vm->base + vm->base[vm->sp + 1],vm->base[vm->sp]);
+#endif
         }
         
         // Unknown instruction

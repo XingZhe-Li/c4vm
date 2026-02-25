@@ -29,7 +29,7 @@ def handle_macro(
                 next_cwd = os.path.dirname(target_path)
                 with open(target_path,'r',encoding='utf-8') as f:
                     src = f.read()
-                include_tokens    = lexer.stage1_tokenize(src)
+                include_tokens    = lexer.tokenize(src)
                 preprocess_tokens = preprocess(
                     include_tokens,
                     define_table,
@@ -42,7 +42,7 @@ def handle_macro(
         macro_name, macro_replacement = matchobj.groups()
         if macro_name in define_table:
             print("{0} is already declared".format(macro_name))
-        macro_replacement = lexer.stage1_tokenize(macro_replacement) if macro_replacement else None
+        macro_replacement = lexer.tokenize(macro_replacement) if macro_replacement else None
         define_table[macro_name] = macro_replacement
     elif matchobj := re.match(r'^undef\s+(\S*)$',macro_line):
         # undef clause

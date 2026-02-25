@@ -5,7 +5,7 @@ from parser import SymTable
 opcode_text = '''
 NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
 OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
-FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,
+FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,
 OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF
 '''
 
@@ -214,11 +214,12 @@ def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
         codegen_action(ctx,action_ast)
 
 builtin_funcs = {
-    'open':'OPEN', 'read': 'READ', 'close': 'CLOSE',
+    'open':'OPEN', 'read': 'READ', 'close': 'CLOS',
     'printf':'PRTF',  'malloc':'MALC', 'free':'FREE',
     'memset':'MSET',  'memcpy':'MCPY', 'memcmp':'MCMP',
     'exit': 'EXIT',   'strcmp':'SCMP', 'strlen':'SLEN',
-    'strstr': 'SSTR', 'strcat':'SCAT', 'scanf': 'SCNF'
+    'strstr': 'SSTR', 'strcat':'SCAT', 'scanf': 'SCNF',
+    'write': 'WRIT'
 }
 
 def codegen_builtin_funcs(ctx : CodegenContext, astnode: ASTNode):
@@ -246,10 +247,16 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
         func_ast : ASTNode = astnode.children[0]
         if func_ast.nodeType == "var":
             func_name = func_ast.metas[0]
-            _ , func_type = ctx.symtable.get((func_name,))
-            func_type : C_Func
-            ret_type = func_type.rettype
-            return ret_type
+            
+            symtuple = ctx.symtable.get((func_name,))
+            if symtuple is None: 
+                # for built-in functions
+                return C_Basetype("long long") # conventionally , built-in functions return long long
+            else:
+                _ , func_type = symtuple
+                func_type : C_Func
+                ret_type = func_type.rettype
+                return ret_type
         else:
             return None
     elif astnode.nodeType == "var":
@@ -848,10 +855,10 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         etype       = unpack_C_Var(ast_type(ctx,child))
         if type(etype) == C_Basetype and etype.typename in ["float","double"]:
             if type(target_type) == C_Basetype and target_type.typename not in ["float","double"]:
-                ctx.image.extend(i64("F2I"))
+                ctx.image.extend(i64(opcode["F2I"]))
         else:
             if type(target_type) == C_Basetype and target_type.typename in ["float","double"]:
-                ctx.image.extend(i64("I2F"))
+                ctx.image.extend(i64(opcode["I2F"]))
 
     elif astnode.nodeType == "break":
         if ctx.flowCtx is not None:
