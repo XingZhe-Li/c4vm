@@ -1,7 +1,8 @@
+#include <stdio.h>
+
 int main(int argc,char** argv) {
-    printf("Hello World! %d \n",1);
-    for (int x = 0; x < 10 ; x ++) {
-        2;
-    }
-    return ;
+    int a = 1 , b = 2;
+    scanf("%d %d",&a,&b);
+    printf("a + b = %lld\n",a + b);
+    return 123;
 }
