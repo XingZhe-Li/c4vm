@@ -5,7 +5,7 @@ from parser import SymTable
 opcode_text = '''
 NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
 OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
-FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,
+FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,GETC,
 OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF
 '''
 
@@ -219,7 +219,7 @@ builtin_funcs = {
     'memset':'MSET',  'memcpy':'MCPY', 'memcmp':'MCMP',
     'exit': 'EXIT',   'strcmp':'SCMP', 'strlen':'SLEN',
     'strstr': 'SSTR', 'strcat':'SCAT', 'scanf': 'SCNF',
-    'write': 'WRIT'
+    'write': 'WRIT',  'getchar': 'GETC'
 }
 
 def codegen_builtin_funcs(ctx : CodegenContext, astnode: ASTNode):
