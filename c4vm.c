@@ -14,7 +14,7 @@
 
 // #define C4VM_DEBUG
 #define C4VM_NOWRITE
-#define C4VM_VERBOSE
+// #define C4VM_VERBOSE
 
 struct c4vm {
     long long  pc,bp,sp,reg;
@@ -184,18 +184,18 @@ long long run(struct c4vm* vm) {
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
             long long argpos = 2;
             char *fmt = (char*)vm->base + vm->base[arg_offset - 1];
-            for (char *p = fmt; *p != '\0'; p++) {
+            for (char *p = fmt; *p != 0; p++) {
                 if (argpos > 6) break;
                 if (*p == '%') {
                     p++;
-                    while (*p != '\0' && !(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z')) {
+                    while (*p != 0 && !(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z')) {
                         p++;
                     }
                     if (*p == 's') {
                         vm->base[arg_offset - argpos] += (long long)vm->base;
                     }
                     argpos++;
-                    if (*p == '\0') break; 
+                    if (*p == 0) break; 
                 }
             }
             vm->reg = printf(
