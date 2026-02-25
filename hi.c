@@ -1,8 +1,8 @@
 #include <stdio.h>
 
 int main(int argc,char** argv) {
-    int a = 1 , b = 2;
-    scanf("%d %d",&a,&b);
-    printf("a + b = %lld\n",a + b);
-    return 123;
+    char x[10] = "Hello World\n";
+    int z = 20;
+    printf("%d %s\n",z,x);
+    return 0;
 }
