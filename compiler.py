@@ -41,7 +41,7 @@ def compile(source_path,target_path):
     # sys.exit(1) # codegen WIP
 
     # pack
-    packed_image = packer.packer(raw_image)
+    packed_image = packer.packer(raw_image,ratio=None,stackspace=1 * 1024 * 1024)
 
     with open(target_path,'wb') as f:
         f.write(packed_image)
