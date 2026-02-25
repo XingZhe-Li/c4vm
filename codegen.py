@@ -360,8 +360,7 @@ def solve_addr(ctx: CodegenContext,astnode : ASTNode):
         ctx.image.extend(i64(opcode["MUL"]))
         ctx.image.extend(i64(opcode["ADD"]))
     elif astnode.nodeType == "deaddr":
-        solve_addr(ctx,astnode.children[0])
-        ctx.image.extend(i64(opcode["LI"]))
+        codegen_action(ctx,astnode.children[0])
     elif astnode.nodeType == "attr":
         field_name = astnode.metas[0]
         lhs = astnode.children[0]
