@@ -762,6 +762,22 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
             codegen_action(ctx,astnode.children[0])
         ctx.image.extend(i64(opcode["LEV"]))
 
+    elif astnode.nodeType == "attr":
+        solve_addr(ctx,astnode)
+        etype = unpack_C_Var(ast_type(ctx,astnode))
+        if type(etype) == C_Basetype and etype.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
+
+    elif astnode.nodeType == "ptr_attr":
+        solve_addr(ctx,astnode)
+        etype = unpack_C_Var(ast_type(ctx,astnode))
+        if type(etype) == C_Basetype and etype.typename in ["unsigned char","char"]:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
+
     elif astnode.nodeType in ["cond","ifelse"] :
         cond_ast , tast , fast = astnode.children
         codegen_action(ctx,cond_ast)
