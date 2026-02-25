@@ -613,9 +613,9 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     elif astnode.nodeType in ["eq","ne","lt","gt","le","ge"]:
         lhs = astnode.children[0]
         rhs = astnode.children[1]
-        codegen_action(lhs)
+        codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["PSH"]))
-        codegen_action(rhs)
+        codegen_action(ctx,rhs)
         ctx.image.extend(i64(opcode[astnode.nodeType.upper()]))
 
     elif astnode.nodeType == "and":
@@ -708,7 +708,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "incret":
         target = astnode.children[0]
-        target_type = unpack_C_Var(ast_type(target))
+        target_type = unpack_C_Var(ast_type(ctx,target))
         solve_addr(ctx,target)
         ctx.image.extend(i64(opcode["PSH"]))
         if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
@@ -725,7 +725,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "decret":
         target = astnode.children[0]
-        target_type = unpack_C_Var(ast_type(target))
+        target_type = unpack_C_Var(ast_type(ctx,target))
         solve_addr(ctx,target)
         ctx.image.extend(i64(opcode["PSH"]))
         if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
@@ -742,7 +742,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "retinc":
         target = astnode.children[0]
-        target_type = unpack_C_Var(ast_type(target))
+        target_type = unpack_C_Var(ast_type(ctx,target))
         solve_addr(ctx,target)
         ctx.image.extend(i64(opcode["PSH"]))
         if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
@@ -762,7 +762,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "retdec":
         target = astnode.children[0]
-        target_type = unpack_C_Var(ast_type(target))
+        target_type = unpack_C_Var(ast_type(ctx,target))
         solve_addr(ctx,target)
         ctx.image.extend(i64(opcode["PSH"]))
         if type(target_type) == C_Basetype and target_type.typename in ["unsigned char","char"]:
