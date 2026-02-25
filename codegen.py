@@ -379,21 +379,10 @@ def solve_addr(ctx: CodegenContext,astnode : ASTNode):
         field_offset , field_type = struct_offset(etype,field_name)
         ctx.image.extend(i64(opcode["IMM"]) + i64(field_offset))
         ctx.image.extend(i64(opcode["ADD"]))
-    elif astnode.nodeType in ["add","sub"]:
-        lhs = astnode.children[0]
-        rhs = astnode.children[1]
-        ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,lhs))
-        if type(rtype) == C_Pointer:
-            lhs  ,rhs   = rhs  ,lhs
-            ltype,rtype = rtype,ltype
-        codegen_action(ctx,lhs)
-        ctx.image.extend(i64(opcode["PSH"]))
-        codegen_action(ctx,rhs)
-        elemsize = type_size(ltype.oftype)
-        ctx.image.extend(i64(opcode["PSH"]))
-        ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
-        ctx.image.extend(i64(opcode["MUL"]) + i64(opcode[astnode.nodeType.upper()]))
+    elif astnode.nodeType == "string":
+        literal_str = astnode.metas[0]
+        var_section , var_pos = ctx.literalpool.alloc(literal_str) # shall only be on image
+        ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
 
 def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     print('codegen_action',astnode)
@@ -630,6 +619,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     elif astnode.nodeType == "deaddr":
         lhs   = astnode.children[0]
         etype = unpack_C_Var(ast_type(ctx,lhs))
+        codegen_action(ctx,lhs)
         if type(etype) == C_Basetype and etype.typename in ["unsigned char","char"]:
             ctx.image.extend(i64(opcode["LC"]))
         else:
