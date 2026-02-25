@@ -881,6 +881,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "as":
         child       = astnode.children[0]
+        codegen_action(ctx,child)
         target_type = astnode.metas[0]
         etype       = unpack_C_Var(ast_type(ctx,child))
         if type(etype) == C_Basetype and etype.typename in ["float","double"]:
