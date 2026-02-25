@@ -810,7 +810,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
         # create a new flowContext
         ctx = CodegenContext(
-            ctx.image,ctx.literalpool,ctx.literalpool,ctx.symtable,
+            ctx.image,ctx.literalpool,ctx.allocator,ctx.symtable,
             FlowContext([],[])
         )
 
@@ -833,7 +833,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         
         oldctx = ctx
         ctx = CodegenContext(
-            ctx.image,ctx.literalpool,ctx.literalpool,ctx.symtable,
+            ctx.image,ctx.literalpool,ctx.allocator,ctx.symtable,
             FlowContext([],[])
         )
 
@@ -855,18 +855,18 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         
         oldctx = ctx
         ctx = CodegenContext(
-            ctx.image,ctx.literalpool,ctx.literalpool,ctx.symtable,
+            ctx.image,ctx.literalpool,ctx.allocator,ctx.symtable,
             FlowContext([],[])
         )
 
-        codegen_action(ctx,init_ast)
+        codegen_action(oldctx,init_ast)
         loop_dest = len(ctx.image.block)
-        codegen_action(ctx,cond_ast)
+        codegen_action(oldctx,cond_ast)
         ctx.image.extend(i64(opcode["BZ"]))
         exit_pos  = ctx.image.extend(i64(0))
         codegen_action(ctx,loop_ast)
         inc_dest  = len(ctx.image.block)
-        codegen_action(ctx,inc_ast)
+        codegen_action(oldctx,inc_ast)
         ctx.image.extend(i64(opcode["JMP"]))
         ctx.image.extend(i64(loop_dest))
         exit_dest = len(ctx.image.block)
