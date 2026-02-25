@@ -791,6 +791,18 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
             if type(target_type) == C_Basetype and target_type.typename in ["float","double"]:
                 ctx.image.extend(i64("I2F"))
 
+    elif astnode.nodeType == "break":
+        if ctx.flowCtx is not None:
+            ctx.image.extend(i64(opcode["JMP"]))
+            brk_pos = ctx.image.extend(i64(0))
+            ctx.flowCtx.break_pos_lst.append(brk_pos)
+
+    elif astnode.nodeType == "continue":
+        if ctx.flowCtx is not None:
+            ctx.image.extend(i64(opcode["JMP"]))
+            cont_pos = ctx.image.extend(i64(0))
+            ctx.flowCtx.continue_pos_lst.append(cont_pos)
+
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
         lst_ast : ASTNode = astnode.children[1]
