@@ -711,7 +711,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         ctx.image.extend(i64(opcode["IMM"]) + i64(0) + i64(opcode["PSH"]))
         codegen_action(ctx,lhs)
-        ctx.image.extend(i64(opcode["SUB"]))
+        ctx.image.extend(i64(opcode["EQ"]))
 
     elif astnode.nodeType == "comma":
         lhs = astnode.children[0]
