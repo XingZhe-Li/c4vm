@@ -1126,6 +1126,10 @@ def poolinit(ctx : CodegenContext ,astnode : ASTNode):
             return
         if node.nodeType == "string":
             ctx.literalpool.alloc(node.metas[0])
+        if node.nodeType == "initlist":
+            for _,ast in node.metas[0]:
+                if type(ast) == ASTNode:
+                    traverse(ast)
         for child in node.children:
             traverse(child)
     traverse(astnode)
