@@ -345,7 +345,7 @@ def solve_addr(ctx: CodegenContext,astnode : ASTNode):
         elif var_section == "image":
             ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
     elif astnode.nodeType == "index":
-        etype = unpack_C_Var(ast_type(ctx,astnode))
+        etype = unpack_C_Var(ast_type(ctx,astnode.children[0]))
         if etype is None: # if failed when inferencing , use long long 
             etype = C_Basetype("long long")
         if type(etype) == C_Pointer:
