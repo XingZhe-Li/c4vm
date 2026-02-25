@@ -381,7 +381,7 @@ def solve_addr(ctx: CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         solve_addr(ctx,lhs)
         ctx.image.extend(i64(opcode["LI"]) + i64(opcode["PSH"]))
-        etype = unpack_C_Var(ast_type(ctx,lhs))
+        etype = unpack_C_Var(ast_type(ctx,lhs)).oftype
         field_offset , field_type = struct_offset(etype,field_name)
         ctx.image.extend(i64(opcode["IMM"]) + i64(field_offset))
         ctx.image.extend(i64(opcode["ADD"]))
