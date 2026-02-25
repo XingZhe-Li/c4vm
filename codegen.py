@@ -269,7 +269,7 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
     elif astnode.nodeType == "float":
         return C_Basetype("double")
     elif astnode.nodeType == "string":
-        return C_Pointer(C_Basetype("char"))
+        return C_Array(C_Basetype("char"),(len(astnode.metas[0]) + 1,))
     elif astnode.nodeType in ["incret","decret","retinc","retdec","neg"]:
         return ast_type(ctx,astnode.children[0])
     elif astnode.nodeType in ["mod","shl","shr","bitand","bitor",
