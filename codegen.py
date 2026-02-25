@@ -655,6 +655,29 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
             codegen_action(ctx,astnode.children[0])
         ctx.image.extend(i64(opcode["LEV"]))
 
+    elif astnode.nodeType in ["cond","ifelse"] :
+        cond_ast , tast , fast = astnode.children
+        codegen_action(ctx,cond_ast)
+        ctx.image.extend(i64(opcode["BZ"]))
+        fpos  = ctx.image.extend(i64(0))
+        codegen_action(ctx,tast)
+        ctx.image.extend(i64(opcode["JMP"]))
+        tpos  = ctx.image.extend(i64(0))
+        fdest = len(ctx.image.block)
+        codegen_action(ctx,fast)
+        tdest = len(ctx.image.block)
+
+        ctx.image.block[fpos:fpos+8] = i64(fdest)
+        ctx.image.block[tpos:tpos+8] = i64(tdest)
+
+    elif astnode.nodeType == "if":
+        cond_ast , branch = astnode.children
+        codegen_action(ctx,cond_ast)
+        ctx.image.extend(i64(opcode["BZ"]))
+        fpos  = ctx.image.extend(i64(0))
+        codegen_action(ctx,branch)
+        ctx.image.block[fpos:fpos+8] = i64(len(ctx.image.block))
+
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
         lst_ast : ASTNode = astnode.children[1]
