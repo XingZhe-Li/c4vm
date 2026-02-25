@@ -435,22 +435,26 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "var":
         var_name = astnode.metas[0]
-        var_type : C_Var = ast_type(ctx,astnode)
-        var_section , var_pos  = ctx.allocator.get(var_name)
-        if var_section == "stack":
-            if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
-                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
-                ctx.image.extend(i64(opcode["LC"]))
-            else:
-                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
-                ctx.image.extend(i64(opcode["LI"]))
-        elif var_section == "image":
-            if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
-                ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
-                ctx.image.extend(i64(opcode["LC"]))
-            else:
-                ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
-                ctx.image.extend(i64(opcode["LI"]))
+        var_type_type, var_type = ctx.symtable.get((var_name,))
+        if type(var_type) == C_Const:
+            ctx.image.extend(i64(opcode["IMM"]) + i64(var_type.value))
+        else:
+            var_type : C_Var = ast_type(ctx,astnode)
+            var_section , var_pos  = ctx.allocator.get(var_name)
+            if var_section == "stack":
+                if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
+                    ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+                    ctx.image.extend(i64(opcode["LC"]))
+                else:
+                    ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+                    ctx.image.extend(i64(opcode["LI"]))
+            elif var_section == "image":
+                if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
+                    ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
+                    ctx.image.extend(i64(opcode["LC"]))
+                else:
+                    ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
+                    ctx.image.extend(i64(opcode["LI"]))
 
     elif astnode.nodeType == "add":
         lhs = astnode.children[0]
