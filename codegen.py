@@ -803,6 +803,56 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
             cont_pos = ctx.image.extend(i64(0))
             ctx.flowCtx.continue_pos_lst.append(cont_pos)
 
+    elif astnode.nodeType == "while":
+        cond_ast , loop_ast = astnode.children
+        loop_dest = len(ctx.image.block)
+        codegen_action(ctx,cond_ast)
+
+        # create a new flowContext
+        ctx = CodegenContext(
+            ctx.image,ctx.literalpool,ctx.literalpool,ctx.symtable,
+            FlowContext([],[])
+        )
+
+        ctx.image.extend(i64(opcode["BZ"]))
+        exit_pos  = ctx.image.extend(i64(0))
+        codegen_action(ctx,loop_ast)
+        ctx.image.extend(i64(opcode["JMP"]))
+        ctx.image.extend(i64(loop_dest))
+        exit_dest = len(ctx.image.block)
+        ctx.image.block[exit_pos:exit_pos + 8] = exit_dest
+
+        for cont_pos in ctx.flowCtx.continue_pos_lst:
+            ctx.image.block[cont_pos: cont_pos + 8] = i64(loop_dest)
+
+        for brk_pos in ctx.flowCtx.break_pos_lst:
+            ctx.image.block[brk_pos: brk_pos + 8] = i64(exit_dest)
+
+    elif astnode.nodeType == "do_while":
+        cond_ast , loop_ast = astnode.children
+        
+        oldctx = ctx
+        ctx = CodegenContext(
+            ctx.image,ctx.literalpool,ctx.literalpool,ctx.symtable,
+            FlowContext([],[])
+        )
+
+        loop_dest = len(ctx.image.block)
+        codegen_action(ctx,loop_ast)
+        codegen_action(oldctx,cond_ast)
+        ctx.image.extend(i64(opcode["BNZ"]))
+        ctx.image.extend(i64(loop_dest))
+        exit_dest = len(ctx.image.block)
+
+        for cont_pos in ctx.flowCtx.continue_pos_lst:
+            ctx.image.block[cont_pos: cont_pos + 8] = i64(loop_dest)
+
+        for brk_pos in ctx.flowCtx.break_pos_lst:
+            ctx.image.block[brk_pos: brk_pos + 8] = i64(exit_dest)
+
+    elif astnode.nodeType == "for":
+        init_ast , cond_ast , inc_ast , loop_ast = astnode.children
+
     elif astnode.nodeType == "init_assign":
         var_ast : ASTNode = astnode.children[0]
         lst_ast : ASTNode = astnode.children[1]
