@@ -366,6 +366,8 @@ def solve_addr(ctx: CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         rhs = astnode.children[1]
         solve_addr(ctx,lhs)
+        if type(etype) == C_Pointer:
+            ctx.image.extend(i64(opcode["LI"]))
         ctx.image.extend(i64(opcode["PSH"]))
         codegen_action(ctx,rhs)
         ctx.image.extend(i64(opcode["PSH"]))
@@ -731,6 +733,14 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     elif astnode.nodeType == "addr":
         lhs   = astnode.children[0]
         solve_addr(ctx,lhs)
+
+    elif astnode.nodeType == "index":
+        solve_addr(ctx,astnode)
+        var_type = unpack_C_Var(ast_type(ctx,astnode))
+        if type(var_type) == C_Basetype and var_type.typename in ['char','unsigned char']:
+            ctx.image.extend(i64(opcode["LC"]))
+        else:
+            ctx.image.extend(i64(opcode["LI"]))
 
     elif astnode.nodeType == "actions":
         codegen_actions(ctx,astnode)
