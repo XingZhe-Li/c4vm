@@ -201,7 +201,7 @@ long long run(struct c4vm* vm) {
             vm->reg = (long long)((void*)strcat((char *)vm->base + vm->base[vm->sp + 1],(char *)vm->base + vm->base[vm->sp]) - (void*)vm->base);
         } else if (opcode == SCNF) {
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
-            vm->reg = scanf((char*)vm->base + vm->base[arg_offset-1],(char*)vm->base + vm->base[arg_offset-1],(char*)vm->base + vm->base[arg_offset-2],(char*)vm->base + vm->base[arg_offset-3],(char*)vm->base + vm->base[arg_offset-4],(char*)vm->base + vm->base[arg_offset-5],(char*)vm->base + vm->base[arg_offset-6]);
+            vm->reg = scanf((char*)vm->base + vm->base[arg_offset-1],(char*)vm->base + vm->base[arg_offset-2],(char*)vm->base + vm->base[arg_offset-3],(char*)vm->base + vm->base[arg_offset-4],(char*)vm->base + vm->base[arg_offset-5],(char*)vm->base + vm->base[arg_offset-6]);
         }
         
         // Unknown instruction
