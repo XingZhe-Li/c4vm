@@ -181,11 +181,8 @@ long long run(struct c4vm* vm) {
         } else if (opcode == PRTF) {
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
             long long argpos = 2;
-            for (
-                char *p=(char*)vm->base + vm->base[arg_offset-1];
-                *p != '\0';
-                p++
-            ) {
+            char *fmt = (char*)vm->base + vm->base[arg_offset - 1];
+            for (char *p = fmt; *p != '\0'; p++) {
                 if (argpos > 6) break;
                 if (*p == '%') {
                     if (*(p + 1) == 's') {
