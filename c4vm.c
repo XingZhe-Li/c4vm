@@ -49,9 +49,9 @@ long long run(struct c4vm* vm) {
             vm->base[--vm->sp] = (vm->pc+1) * 8;
             vm->pc = vm->base[vm->pc++] / 8;
         } else if (opcode == BZ) {
-            vm->pc  = vm->reg ? vm->pc + 1 : vm->base[vm->pc];
+            vm->pc  = vm->reg ? vm->pc + 1 : (vm->base[vm->pc] / 8);
         } else if (opcode == BNZ) {
-            vm->pc  = vm->reg ? vm->base[vm->pc] : vm->pc + 1;
+            vm->pc  = vm->reg ? (vm->base[vm->pc] / 8): vm->pc + 1;
         } else if (opcode == ENT) {
             vm->base[--vm->sp] = vm->bp * 8;
             vm->bp  = vm->sp;
