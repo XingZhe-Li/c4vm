@@ -12,7 +12,8 @@
 #define O_TRUNC  0x0200
 #endif
 
-#define C4VM_DEBUG
+// #define C4VM_DEBUG
+#define C4VM_NOWRITE
 // #define C4VM_VERBOSE
 
 struct c4vm {
@@ -227,7 +228,11 @@ long long run(struct c4vm* vm) {
 #ifdef C4VM_DEBUG
             printf("WRIT IS FORBIDDEN WHEN WITH C4VM_DEBUG\n");
 #else
+#ifdef C4VM_NOWRITE
+            printf("WRIT IS FORBIDDEN WHEN WITH C4VM_NOWRITE\n");
+#else
             vm->reg = write(vm->base[vm->sp + 2],(char*)vm->base + vm->base[vm->sp + 1],vm->base[vm->sp]);
+#endif
 #endif
         }
         
