@@ -115,6 +115,18 @@ def tokenize(src: str) -> list[Token]:
                             if idx < len(src):
                                 low_char = src[idx]
                             buf = builtins.chr(int(high_char,16) * 16 + int(low_char,16))
+                        elif src[idx] in "01234567": # \000 (oct mode)
+                            high_char = mid_char = '0'
+                            low_char = src[idx]
+                            idx += 1
+                            if idx < len(src) and src[idx] in "01234567":
+                                mid_char , low_char = low_char , src[idx]
+                                idx += 1
+                            if idx < len(src) and src[idx] in "01234567":
+                                high_char , mid_char , low_char = high_char , low_char , src[idx]
+                            else:
+                                idx -= 1
+                            buf = builtins.chr(8 * 8 * int(high_char,8) + 8 * int(mid_char,8) + int(low_char,8))
                         else:
                             buf = src[idx]
                         idx += 1
@@ -141,6 +153,18 @@ def tokenize(src: str) -> list[Token]:
                             if idx < len(src):
                                 low_char = src[idx]
                             buf += builtins.chr(int(high_char,16) * 16 + int(low_char,16))
+                        elif src[idx] in "01234567": # \000 (oct mode)
+                            high_char = mid_char = '0'
+                            low_char = src[idx]
+                            idx += 1
+                            if idx < len(src) and src[idx] in "01234567":
+                                mid_char , low_char = low_char , src[idx]
+                                idx += 1
+                            if idx < len(src) and src[idx] in "01234567":
+                                high_char , mid_char , low_char = high_char , low_char , src[idx]
+                            else:
+                                idx -= 1
+                            buf += builtins.chr(8 * 8 * int(high_char,8) + 8 * int(mid_char,8) + int(low_char,8))
                         else:
                             buf += src[idx]
                         idx += 1
