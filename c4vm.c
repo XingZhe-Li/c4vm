@@ -185,13 +185,25 @@ long long run(struct c4vm* vm) {
             for (char *p = fmt; *p != '\0'; p++) {
                 if (argpos > 6) break;
                 if (*p == '%') {
-                    if (*(p + 1) == 's') {
-                        vm->base[arg_offset-argpos] += (long long)vm->base;
+                    p++;
+                    while (*p != '\0' && !(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z')) {
+                        p++;
                     }
-                    argpos ++;
+                    if (*p == 's') {
+                        vm->base[arg_offset - argpos] += (long long)vm->base;
+                    }
+                    argpos++;
+                    if (*p == '\0') break; 
                 }
             }
-            vm->reg = printf((char*)vm->base + vm->base[arg_offset-1],vm->base[arg_offset-2],vm->base[arg_offset-3],vm->base[arg_offset-4],vm->base[arg_offset-5],vm->base[arg_offset-6]);
+            vm->reg = printf(
+                fmt,
+                vm->base[arg_offset - 2],
+                vm->base[arg_offset - 3],
+                vm->base[arg_offset - 4],
+                vm->base[arg_offset - 5],
+                vm->base[arg_offset - 6]
+            );
         } else if (opcode == MALC) {
             vm->reg = (long long) malloc(vm->base[vm->sp]) - (long long)vm->base;
         } else if (opcode == FREE) {
