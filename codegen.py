@@ -458,10 +458,13 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
         ltype = unpack_C_Var(ast_type(ctx,lhs))
         rtype = unpack_C_Var(ast_type(ctx,lhs))
-        if type(rtype) == C_Pointer:
-            lhs  ,rhs   = rhs  ,lhs
-            ltype,rtype = rtype,ltype
-        if type(ltype) == C_Pointer:
+
+        ltype_is_pointer = type(ltype) == C_Pointer
+        rtype_is_pointer = type(rtype) == C_Pointer
+        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
+        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
+        
+        if ltype_is_pointer:
             codegen_action(ctx,lhs)
             ctx.image.extend(i64(opcode["PSH"]))
             codegen_action(ctx,rhs)
@@ -469,17 +472,32 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
             ctx.image.extend(i64(opcode["PSH"]))
             ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
             ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
+        elif rtype_is_pointer:
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,lhs)
+            elemsize = type_size(rtype.oftype)
+            ctx.image.extend(i64(opcode["PSH"]))
+            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
+            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
+        elif ltype_is_double:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            if not rtype_is_double:
+                ctx.image.extend(i64(opcode["I2F"]))
+            ctx.image.extend(i64(opcode["FADD"]))
+        elif rtype_is_double:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["I2F"]))
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["FADD"]))
         else:
-            if type(rtype) == C_Basetype and rtype.typename in ["float","double"]:
-                lhs  ,rhs   = rhs  ,lhs
-                ltype,rtype = rtype,ltype
-            if type(ltype) == C_Basetype and ltype.typename in ["float","double"]:
-                codegen_action(ctx,lhs)
-                if type(rtype) == C_Basetype and rtype.typename not in ["float","double"]:
-                    ctx.image.extend(i64(opcode["I2F"]))
-                ctx.image.extend(i64(opcode["PSH"]))
-                codegen_action(ctx,rhs)
-                ctx.image.extend(i64(opcode["FADD"]))
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["ADD"]))
 
     elif astnode.nodeType == "sub":
         lhs = astnode.children[0]
@@ -487,10 +505,13 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
         ltype = unpack_C_Var(ast_type(ctx,lhs))
         rtype = unpack_C_Var(ast_type(ctx,lhs))
-        if type(rtype) == C_Pointer:
-            lhs  ,rhs   = rhs  ,lhs
-            ltype,rtype = rtype,ltype
-        if type(ltype) == C_Pointer:
+
+        ltype_is_pointer = type(ltype) == C_Pointer
+        rtype_is_pointer = type(rtype) == C_Pointer
+        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
+        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
+        
+        if ltype_is_pointer:
             codegen_action(ctx,lhs)
             ctx.image.extend(i64(opcode["PSH"]))
             codegen_action(ctx,rhs)
@@ -498,17 +519,32 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
             ctx.image.extend(i64(opcode["PSH"]))
             ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
             ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["SUB"]))
+        elif rtype_is_pointer:
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,lhs)
+            elemsize = type_size(rtype.oftype)
+            ctx.image.extend(i64(opcode["PSH"]))
+            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
+            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["SUB"]))
+        elif ltype_is_double:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            if not rtype_is_double:
+                ctx.image.extend(i64(opcode["I2F"]))
+            ctx.image.extend(i64(opcode["FSUB"]))
+        elif rtype_is_double:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["I2F"]))
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["FSUB"]))
         else:
-            if type(rtype) == C_Basetype and rtype.typename in ["float","double"]:
-                lhs  ,rhs   = rhs  ,lhs
-                ltype,rtype = rtype,ltype
-            if type(ltype) == C_Basetype and ltype.typename in ["float","double"]:
-                codegen_action(ctx,lhs)
-                if type(rtype) == C_Basetype and rtype.typename not in ["float","double"]:
-                    ctx.image.extend(i64(opcode["I2F"]))
-                ctx.image.extend(i64(opcode["PSH"]))
-                codegen_action(ctx,rhs)
-                ctx.image.extend(i64(opcode["FSUB"]))
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["SUB"]))
 
     elif astnode.nodeType == "mul":
         lhs = astnode.children[0]
@@ -516,16 +552,27 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         ltype = unpack_C_Var(ast_type(ctx,lhs))
         rtype = unpack_C_Var(ast_type(ctx,lhs))
 
-        if type(rtype) == C_Basetype and rtype.typename in ["float","double"]:
-            lhs  ,rhs   = rhs  ,lhs
-            ltype,rtype = rtype,ltype
-        if type(ltype) == C_Basetype and ltype.typename in ["float","double"]:
+        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
+        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
+
+        if ltype_is_double:
             codegen_action(ctx,lhs)
-            if type(rtype) == C_Basetype and rtype.typename not in ["float","double"]:
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            if not rtype_is_double:
                 ctx.image.extend(i64(opcode["I2F"]))
+            ctx.image.extend(i64(opcode["FMUL"]))
+        elif rtype_is_double:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["I2F"]))
             ctx.image.extend(i64(opcode["PSH"]))
             codegen_action(ctx,rhs)
             ctx.image.extend(i64(opcode["FMUL"]))
+        else:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["MUL"]))
 
     elif astnode.nodeType == "div":
         lhs = astnode.children[0]
@@ -533,16 +580,27 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         ltype = unpack_C_Var(ast_type(ctx,lhs))
         rtype = unpack_C_Var(ast_type(ctx,lhs))
 
-        if type(rtype) == C_Basetype and rtype.typename in ["float","double"]:
-            lhs  ,rhs   = rhs  ,lhs
-            ltype,rtype = rtype,ltype
-        if type(ltype) == C_Basetype and ltype.typename in ["float","double"]:
+        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
+        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
+
+        if ltype_is_double:
             codegen_action(ctx,lhs)
-            if type(rtype) == C_Basetype and rtype.typename not in ["float","double"]:
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            if not rtype_is_double:
                 ctx.image.extend(i64(opcode["I2F"]))
+            ctx.image.extend(i64(opcode["FDIV"]))
+        elif rtype_is_double:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["I2F"]))
             ctx.image.extend(i64(opcode["PSH"]))
             codegen_action(ctx,rhs)
             ctx.image.extend(i64(opcode["FDIV"]))
+        else:
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx,rhs)
+            ctx.image.extend(i64(opcode["DIV"]))
 
     elif astnode.nodeType == "mod":
         lhs = astnode.children[0]
