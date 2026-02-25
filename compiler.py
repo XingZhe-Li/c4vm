@@ -54,9 +54,9 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:
         show_help()
         sys.exit(0)
-    elif len(sys.argv) >= 2:
+    if len(sys.argv) >= 2:
         source = sys.argv[1]
-    elif len(sys.argv) >= 3:
+    if len(sys.argv) >= 3:
         target = sys.argv[2]
 
     compile(source,target)
