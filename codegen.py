@@ -454,6 +454,8 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
                 if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
                     ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
                     ctx.image.extend(i64(opcode["LC"]))
+                elif type(var_type.oftype) == C_Array:
+                    ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
                 else:
                     ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
                     ctx.image.extend(i64(opcode["LI"]))
@@ -461,6 +463,8 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
                 if type(var_type.oftype) == C_Basetype and var_type.oftype.typename in ["unsigned char","char"]:
                     ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
                     ctx.image.extend(i64(opcode["LC"]))
+                elif type(var_type.oftype) == C_Array:
+                    ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
                 else:
                     ctx.image.extend(i64(opcode["IMM"]) + i64(var_pos))
                     ctx.image.extend(i64(opcode["LI"]))
