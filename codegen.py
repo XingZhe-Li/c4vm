@@ -92,11 +92,17 @@ class Allocator:
         return None
 
 @dataclass
+class FlowContext:
+    break_pos_lst     : list[int]
+    continue_pos_lst  : list[int]
+
+@dataclass
 class CodegenContext:
     image       : Image
     literalpool : LiteralPool
     allocator   : Allocator
     symtable    : SymTable
+    flowCtx     : FlowContext
 
 def entry(astroot: ASTNode) -> bytes:
     image = Image()
@@ -105,7 +111,7 @@ def entry(astroot: ASTNode) -> bytes:
     allocator    = Allocator(father=None,backend=allocbackend)
     symtable     = astroot.metas[0]
 
-    ctx = CodegenContext(image,literalpool,allocator,symtable)
+    ctx = CodegenContext(image,literalpool,allocator,symtable,None)
 
     program(ctx,astroot)
     disasm(ctx.image.block)
@@ -177,7 +183,7 @@ def codegen_function(ctx : CodegenContext, astnode : ASTNode):
         new_allocator.symmap[arg_name] = ("stack",8 * (arg_count - 1 - idx) + 16)
 
     ctx = CodegenContext(
-        ctx.image,ctx.literalpool,new_allocator,func_symtable
+        ctx.image,ctx.literalpool,new_allocator,func_symtable,ctx.flowCtx
     )
     codegen_actions(ctx,astnode.children[0])
 
@@ -190,7 +196,7 @@ def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
     symtable : SymTable = astnode.metas[0]
     new_allocator       = Allocator(ctx.allocator,ctx.allocator.backend)
     ctx = CodegenContext(
-        ctx.image,ctx.literalpool,new_allocator,symtable
+        ctx.image,ctx.literalpool,new_allocator,symtable,ctx.flowCtx
     )
     
     # build symbol table for scope
