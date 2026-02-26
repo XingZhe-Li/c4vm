@@ -18,3 +18,10 @@ def packer(raw_image : bytes,ratio = 2,fixspace = None,stackspace = None) -> byt
     elif stackspace is not None:
         return (raw_size + stackspace).to_bytes(8,'little') + raw_image
     return b''
+
+def qword_array(raw_image: bytes) -> list:
+    res = []
+    for i in range(0,len(raw_image),8):
+        qword = raw_image[i:i+8]
+        res.append(int.from_bytes(qword,'little',signed=True))
+    return res

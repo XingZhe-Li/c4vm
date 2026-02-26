@@ -40,6 +40,11 @@ def compile(source_path,target_path):
     print("raw_image:",raw_image)
     # sys.exit(1) # codegen WIP
 
+    # if you wanna make a embed long long array
+    # just convert it to qword_array by decommenting code below
+    # print(packer.qword_array(raw_image))
+    # sys.exit(1) # codegen WIP
+
     # pack
     packed_image = packer.packer(raw_image,ratio=None,stackspace=1 * 1024 * 1024)
 
