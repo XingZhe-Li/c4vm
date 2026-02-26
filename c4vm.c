@@ -178,7 +178,7 @@ long long run(struct c4vm* vm) {
 #ifdef C4VM_DEBUG
             printf("CLOS IS FORBIDDEN WHEN WITH C4VM_DEBUG\n");
 #else
-            vm->reg = open((char*)vm->base + vm->base[vm->sp + 1], vm->base[vm->sp]);
+            vm->reg = close(vm->base[vm->sp]);
 #endif
         } else if (opcode == PRTF) {
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
