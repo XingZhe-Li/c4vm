@@ -285,6 +285,16 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
             return C_Basetype("double")
         if type(rtype) == C_Basetype and rtype.typename in ['float','double']:
             return C_Basetype("double")
+        if astnode.nodeType == "add":
+            if type(ltype) == C_Pointer:
+                return ltype
+            if type(rtype) == C_Pointer:
+                return rtype
+        elif astnode.nodeType == "sub":
+            if type(ltype) == C_Pointer and type(rtype) != C_Pointer:
+                return ltype
+            if type(rtype) == C_Pointer and type(ltype) != C_Pointer:
+                return rtype
         return C_Basetype("long long")
     elif astnode.nodeType == "assign":
         lhs = astnode.children[0]
@@ -365,9 +375,12 @@ def solve_addr(ctx: CodegenContext,astnode : ASTNode):
         childsize = type_size(childtype)
         lhs = astnode.children[0]
         rhs = astnode.children[1]
-        solve_addr(ctx,lhs)
         if type(etype) == C_Pointer:
-            ctx.image.extend(i64(opcode["LI"]))
+            # lhs is a pointer value; evaluating it directly handles
+            # non-addressable expressions such as casts
+            codegen_action(ctx,lhs)
+        else:
+            solve_addr(ctx,lhs)
         ctx.image.extend(i64(opcode["PSH"]))
         codegen_action(ctx,rhs)
         ctx.image.extend(i64(opcode["PSH"]))
