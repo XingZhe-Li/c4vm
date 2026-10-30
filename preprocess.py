@@ -1,120 +1,75 @@
-import re
+"""展开对象宏、相对路径头文件及 ifdef/ifndef 条件组，输出解析器使用的 Token。
+
+包含的文件共享宏定义，各自维护条件栈。尖括号标准头文件由 VM 内置函数替代；
+本模块不实现完整的标准 C 预处理器。
+"""
+
 import os
+import re
 import lexer
 from common import Token
 
-def entry(tokens: list[Token],cwd: str) -> list[Token]:
-    including_stack  = []
-    define_table     = {}
-    return preprocess(tokens,define_table,including_stack,cwd)
 
-def handle_macro(
-        macro_line: str,
-        define_table:dict[str,str],
-        including_stack:list[bool],
-        output_tokens: list[Token],
-        cwd: str) -> int:
-    
-    macro_line = macro_line.strip()
-    if matchobj := re.match(r'^include\s+(<.*?>|".*?")$',macro_line):
-        # include clause
-        include_target = matchobj.group(1)
-        if include_target.startswith("<"):
-            pass
-            # discard internal file inclusion
-        elif include_target.startswith("\""):
-            include_target = include_target[1:-1]
-            target_path = os.path.join(cwd,include_target)
-            if os.path.isfile(target_path):
-                next_cwd = os.path.dirname(target_path)
-                with open(target_path,'r',encoding='utf-8') as f:
-                    src = f.read()
-                include_tokens    = lexer.tokenize(src)
-                preprocess_tokens = preprocess(
-                    include_tokens,
-                    define_table,
-                    including_stack,
-                    next_cwd
-                )
-                output_tokens.extend(preprocess_tokens)
-    elif matchobj := re.match(r'^define\s+(\S*)(?:|\s+(.*))$',macro_line):
-        # define clause
-        macro_name, macro_replacement = matchobj.groups()
-        if macro_name in define_table:
-            print("{0} is already declared".format(macro_name))
-        macro_replacement = lexer.tokenize(macro_replacement) if macro_replacement else None
-        define_table[macro_name] = macro_replacement
-    elif matchobj := re.match(r'^undef\s+(\S*)$',macro_line):
-        # undef clause
-        macro_name = matchobj.group(1)
-        if macro_name not in define_table:
-            print("{0} is not yet defined".format(macro_name))
-        del define_table[macro_name]
-    elif matchobj := re.match(r'^ifdef\s+(\S*)$',macro_line):
-        # ifdef clause
-        macro_name = matchobj.group(1)
-        active = macro_name in define_table
-        including_stack.append(active)
-    elif matchobj := re.match(r'^ifndef\s+(\S*)$',macro_line):
-        # ifndef clause
-        macro_name = matchobj.group(1)
-        active = macro_name not in define_table
-        including_stack.append(active)
-    elif macro_line == "else":
-        # else clause
-        if including_stack:
-            including_stack[-1] = not including_stack[-1]
-    elif macro_line == "endif":
-        # endif clause
-        if including_stack:
-            including_stack.pop()
-    else:
-        print("macro discard \"{0}\"".format(macro_line))
+def entry(tokens: list[Token], cwd: str) -> list[Token]:
+    return preprocess(tokens, {}, [], cwd)
 
-def preprocess(tokens: list[Token], 
-               define_table: dict[str,str],
-               including_stack: list[bool],
-               cwd: str) -> list[Token]:
-    '''
-    define_table for recursive-including
-    including_stack for ifdef & ifndef detection
-    '''
 
-    # variable for return
-    output_tokens = []
+def preprocess(tokens, define_table, including_stack, cwd, depth=0):
+    if depth > 100:
+        raise SyntaxError("include nesting exceeds 100 files (possible include cycle)")
+    output = []
+    # Each file owns its conditional groups; definitions are shared by includes.
+    groups = []
 
-    idx = 0
-    while idx < len(tokens):
-        tk = tokens[idx]
-        if not including_stack or including_stack[-1]:
-            if tk.tktype == "macro":
-                handle_macro(
-                    tk.value,
-                    define_table,including_stack,
-                    output_tokens,cwd
-                )
-                idx += 1
-            elif tk.tktype == "identifier":
-                id_name = tk.value
-                if id_name in define_table:
-                    macro_replacement = define_table[id_name]
-                    output_tokens.extend(macro_replacement)
-                    idx += 1
-                else:
-                    output_tokens.append(tk)
-                    idx += 1
-            else:
-                output_tokens.append(tk)
-                idx += 1
+    def expand(token, disabled=frozenset()):
+        # 一条展开路径中禁用已展开的名称，允许 A -> B，同时阻止 A -> B -> A 循环。
+        name = token.value
+        if token.tktype == "identifier" and name in define_table and name not in disabled:
+            for replacement in define_table[name]:
+                yield from expand(Token(replacement.tktype, replacement.value, token.line), disabled | {name})
         else:
-            if tk.tktype == "macro":
-                handle_macro(
-                    tk.value,
-                    define_table,including_stack,
-                    output_tokens,cwd
-                )
-                idx += 1
-            else:
-                idx += 1
+            yield token
 
-    return output_tokens
+    for token in tokens:
+        active = all(group[0] for group in groups)
+        if token.tktype != "macro":
+            if active:
+                output.extend(expand(token))
+            continue
+        directive = token.value.strip()
+
+        def error(message):
+            raise SyntaxError(f"line {token.line}: {message}")
+
+        if match := re.fullmatch(r"(ifdef|ifndef)\s+([a-zA-Z_]\w*)", directive):
+            condition = match[2] in define_table
+            groups.append([condition if match[1] == "ifdef" else not condition, False])
+        elif directive == "else":
+            if not groups or groups[-1][1]:
+                error("unmatched or duplicate #else")
+            groups[-1] = [not groups[-1][0], True]
+        elif directive == "endif":
+            if not groups:
+                error("unmatched #endif")
+            groups.pop()
+        elif not active:
+            continue
+        elif match := re.fullmatch(r'include\s+(<[^>]+>|"[^"]+")', directive):
+            target = match[1]
+            if target.startswith("<"):
+                continue  # Host library functions are supplied by VM builtins.
+            path = os.path.join(cwd, target[1:-1])
+            with open(path, encoding="utf-8") as source:
+                included = lexer.tokenize(source.read())
+            output.extend(preprocess(included, define_table, [], os.path.dirname(path), depth + 1))
+        elif match := re.fullmatch(r"define\s+([a-zA-Z_]\w*)(.*)", directive):
+            if match[2].startswith("("):
+                error("function-like macros are not supported")
+            define_table[match[1]] = lexer.tokenize(match[2].strip())
+        elif match := re.fullmatch(r"undef\s+([a-zA-Z_]\w*)", directive):
+            define_table.pop(match[1], None)
+        else:
+            error(f"unsupported preprocessor directive #{directive}")
+    if groups:
+        raise SyntaxError("unterminated #ifdef/#ifndef group")
+    return output

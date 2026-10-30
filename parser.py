@@ -1,6 +1,14 @@
+"""将预处理后的 Token 解析为 AST，并建立嵌套的符号表。
+
+表达式采用递归下降：prec 从 15（逗号）到 1（原子及后缀访问），
+赋值与三目表达式单独处理右结合。语句块、函数和 for 声明分别拥有作用域。
+此阶段只完成基础声明解析，完整的类型检查尚未实现。
+"""
+
 from common import *
 
 class Ref:
+    """让递归解析函数共享一个可推进、可回溯的 Token 下标。"""
     def __init__(self,val):
         self.val = val
     def __repr__(self):
@@ -9,6 +17,7 @@ class Ref:
 REPR_SYMTABLE = False
 
 class SymTable:
+    """名称以元组为键，值为 (种类, 类型信息)；查找沿 father 回溯。"""
     mapper : dict
     father : "SymTable"
 
@@ -35,6 +44,14 @@ class SymTable:
 def parse(tokens: list[Token]) -> ASTNode:
     idx = Ref(0)
     return program(idx,tokens)
+
+def require(idx, tokens, tktype, value):
+    """消费必需的语法符号；区别于允许失败、不移动下标的 match。"""
+    token = tools(idx, tokens)[1](tktype, value)
+    if token is None:
+        line = tokens[min(idx.val, len(tokens) - 1)].line if tokens else 1
+        raise SyntaxError(f"line {line}: expected {value!r}")
+    return token
 
 def tools(idx: Ref, tokens: list[Token]) -> tuple:
     # tool functions for pattern matching
@@ -132,7 +149,7 @@ def parseBasetype(idx: Ref,tokens: list[Token] , symTable : SymTable):
     return symTable.get(tuple(typenames))[1]
 
 def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -> tuple:
-    '''return one of (C_Type ,var_name:str)'''
+    """解析声明符，返回 (类型, 可选名称)，保留指针/数组/函数的括号绑定关系。"""
     _,match,_,_ = tools(idx,tokens)
 
     if basetype is None:
@@ -163,17 +180,27 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -
             var_name = tk.value
         elif match("operator","("):
             mid_top_type , mid_bottom_type = solve_type(None)
-            match("operator",")")
+            require(idx, tokens, "operator", ")")
         if match("operator","("):
             argtypes = []
             while True:
                 if match("operator",")"):
                     break
-                argtypes.append(parseType(idx,tokens,symTable))
+                argtype, argname = parseType(idx,tokens,symTable)
+                if argtype is None:
+                    require(idx, tokens, "identifier", "parameter type")
+                if type(argtype) == C_Array:
+                    child = argtype.oftype if len(argtype.dimension) == 1 else C_Array(argtype.oftype, argtype.dimension[1:])
+                    argtype = C_Pointer(child)
+                elif type(argtype) == C_Func:
+                    argtype = C_Pointer(argtype)
+                argtypes.append((argtype, argname))
                 if match("operator",")"):
                     break
                 else:
-                    match("operator",",")
+                    require(idx, tokens, "operator", ",")
+            if argtypes == [(C_Basetype("void"), None)]:
+                argtypes = []
             top_type = C_Func(top_type,argtypes)
             if bottom_type is None:
                 bottom_type = top_type
@@ -186,7 +213,7 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -
                 else:
                     arr_size = None
                 dimensions.append(arr_size)
-                match("operator","]")
+                require(idx, tokens, "operator", "]")
             if dimensions:
                 top_type = C_Array(top_type,tuple(dimensions))
                 if bottom_type is None:
@@ -209,6 +236,8 @@ def parseType(idx: Ref,tokens: list[Token],symTable: SymTable,basetype = None) -
 def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
     '''it's possible to return a ASTNode if here is some initialization'''
     basetype = parseBasetype(idx,tokens,symTable)
+    if basetype is None:
+        require(idx, tokens, "identifier", "type name")
     _,match,_,_ = tools(idx,tokens)
 
     if type(basetype) == C_Typedef:
@@ -234,7 +263,7 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
                     if match("operator","}"):
                         break
                     else:
-                        match("operator",";")
+                        require(idx, tokens, "operator", ";")
                 newtype = C_Struct(fields)
             else:
                 newtype = C_Struct([])
@@ -248,7 +277,7 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
                     if match("operator","}"):
                         break
                     else:
-                        match("operator",";")
+                        require(idx, tokens, "operator", ";")
                 newtype = C_Union(fields)
             else:
                 newtype = C_Union([])
@@ -265,7 +294,7 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
                     if match("operator","}"):
                         break
                     else:
-                        match("operator",",")
+                        require(idx, tokens, "operator", ",")
         if var_name:
             symTable.set((var_type.typename,var_name),("type",newtype))
     
@@ -274,13 +303,15 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
         rootnode = ASTNode("actions",[],(SymTable({},symTable),))
         while True:
             var_type , var_name = parseType(idx,tokens,symTable,basetype)
+            if var_name is None:
+                require(idx, tokens, "identifier", "declarator name")
             symTable.set((var_name,),("var",C_Var(var_type)))
         
             if match("operator","="):
                 # with init
                 if match("operator","{"):
                     astnode = initlist(idx,tokens,symTable)
-                    match("operator","}")
+                    require(idx, tokens, "operator", "}")
                     astnode = ASTNode("init_assign",[
                         ASTNode("var",[],(var_name,)),
                         astnode
@@ -293,14 +324,18 @@ def declaration(idx: Ref,tokens: list[Token],symTable: SymTable) -> ASTNode:
                     ],())
                     rootnode.children.append(astnode)
             elif match("operator","{"):
+                if type(var_type) != C_Func:
+                    raise SyntaxError("expected '=' before initializer or '(' before function body")
                 # symtable for arguments
                 argsymtable = symTable.derive()
                 var_type : C_Func
                 for argtype , argname in var_type.argtype:
+                    if argname is None:
+                        raise SyntaxError("function definition requires parameter names")
                     argsymtable.set((argname,),("var",C_Var(argtype)))
                 
                 astnode = ASTNode("function",[statements(idx,tokens,argsymtable)],(var_name,var_type,argsymtable))
-                match("operator","}")
+                require(idx, tokens, "operator", "}")
                 rootnode.children.append(astnode)
             if not match("operator",","):
                 break
@@ -318,19 +353,19 @@ def initlist(idx:Ref, tokens: list[Token], symTable: SymTable) -> ASTNode:
     while True:
         if match("operator","["):
             autoidx = match("integer").value
-            match("operator","]")
-            match("operator","=")
+            require(idx, tokens, "operator", "]")
+            require(idx, tokens, "operator", "=")
             value = expression(idx,tokens,symTable,14)
             lst.append((autoidx,value))
             autoidx += 1
         elif match("operator","."):
             tk = match("identifier")
-            match("operator","=")
+            require(idx, tokens, "operator", "=")
             value = expression(idx,tokens,symTable,14)
             lst.append((tk.value,value))
         elif match("operator","{"):
             sublst = initlist(idx,tokens,symTable)
-            match("operator","}")
+            require(idx, tokens, "operator", "}")
             lst.append((autoidx,sublst))
             autoidx += 1
         else:
@@ -339,7 +374,9 @@ def initlist(idx:Ref, tokens: list[Token], symTable: SymTable) -> ASTNode:
             value = expression(idx,tokens,symTable,14)
             lst.append((autoidx,value))
             autoidx += 1
-        match("operator",",")
+        if not peek() or peek().value == "}":
+            break
+        require(idx, tokens, "operator", ",")
     return ASTNode("initlist",[],(lst,))
 
 def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTNode:
@@ -357,43 +394,22 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
 
     if prec >= 14:
         lhs = expression(idx,tokens,symTable,13)
-        while True:
-            if match("operator","="):
-                lhs = ASTNode("assign",[lhs,expression(idx,tokens,symTable,13)],())
-            elif match("operator","/="):
-                lhs = ASTNode("assign",[lhs,ASTNode("div",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","*="):
-                lhs = ASTNode("assign",[lhs,ASTNode("mul",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","%="):
-                lhs = ASTNode("assign",[lhs,ASTNode("mod",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","+="):
-                lhs = ASTNode("assign",[lhs,ASTNode("add",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","-="):
-                lhs = ASTNode("assign",[lhs,ASTNode("sub",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","<<="):
-                lhs = ASTNode("assign",[lhs,ASTNode("shl",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator",">>="):
-                lhs = ASTNode("assign",[lhs,ASTNode("shr",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","&="):
-                lhs = ASTNode("assign",[lhs,ASTNode("bitand",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","^="):
-                lhs = ASTNode("assign",[lhs,ASTNode("bitxor",[lhs,expression(idx,tokens,symTable,13)],())],())
-            elif match("operator","|="):
-                lhs = ASTNode("assign",[lhs,ASTNode("bitor",[lhs,expression(idx,tokens,symTable,13)],())],())
-            else:
-                break
+        if match("operator", "="):
+            return ASTNode("assign", [lhs, expression(idx,tokens,symTable,14)], ())
+        operations = {"/=": "div", "*=": "mul", "%=": "mod", "+=": "add", "-=": "sub",
+                      "<<=": "shl", ">>=": "shr", "&=": "bitand", "^=": "bitxor", "|=": "bitor"}
+        for operator, operation in operations.items():
+            if match("operator", operator):
+                return ASTNode("compound_assign", [lhs, expression(idx,tokens,symTable,14)], (operation,))
         return lhs
 
     if prec >= 13:
         lhs = expression(idx,tokens,symTable,12)
-        while True:
-            if match("operator","?"):
-                true_ret  = expression(idx,tokens,symTable,12)
-                match("operator",":")
-                false_ret = expression(idx,tokens,symTable,12)
-                lhs = ASTNode("cond",[lhs,true_ret,false_ret],())
-            else:
-                break
+        if match("operator","?"):
+            true_ret = expression(idx,tokens,symTable)
+            require(idx, tokens, "operator", ":")
+            false_ret = expression(idx,tokens,symTable,13)
+            lhs = ASTNode("cond",[lhs,true_ret,false_ret],())
         return lhs
 
     if prec >= 12:
@@ -514,7 +530,16 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
         elif match("operator","!"):
             lhs = ASTNode("not",[expression(idx,tokens,symTable,2)],())
         elif match("identifier","sizeof"):
-            lhs = ASTNode("sizeof",[expression(idx,tokens,symTable,2)],())
+            snapshot = idx.val
+            size_type = None
+            if match("operator", "("):
+                size_type, _ = parseType(idx, tokens, symTable)
+            if size_type is not None:
+                require(idx, tokens, "operator", ")")
+                lhs = ASTNode("sizeof", [], (size_type,))
+            else:
+                idx.val = snapshot
+                lhs = ASTNode("sizeof",[expression(idx,tokens,symTable,2)],())
         elif match("operator","~"):
             lhs = ASTNode("bitnot",[expression(idx,tokens,symTable,2)],())
         elif match("operator","+"):
@@ -525,8 +550,8 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
             snapshot = idx.val
             if match("operator","("):
                 conv_type , _ = parseType(idx,tokens,symTable)
-                match("operator",")")
                 if conv_type:
+                    require(idx, tokens, "operator", ")")
                     lhs = ASTNode("as",[expression(idx,tokens,symTable,2)],(conv_type,))
                 else:
                     idx.val = snapshot
@@ -547,7 +572,7 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
         tk : Token
         if match("operator","("):
             lhs = expression(idx,tokens,symTable)
-            match("operator",")")
+            require(idx, tokens, "operator", ")")
         elif tk := match("identifier"):
             var_name = tk.value
             lhs = ASTNode("var",[],(var_name,))
@@ -557,6 +582,10 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
             lhs = ASTNode("string",[],(tk.value,))
         elif tk := match("float"):
             lhs = ASTNode("float",[],(tk.value,))
+        else:
+            token = tokens[idx.val] if idx.val < len(tokens) else None
+            line = token.line if token else (tokens[-1].line if tokens else 1)
+            raise SyntaxError(f"line {line}: expected expression, got {token.value if token else 'end of file'!r}")
 
         while True:
             if match("operator","("):
@@ -568,11 +597,11 @@ def expression(idx: Ref, tokens: list[Token],symTable: SymTable,prec=15) -> ASTN
                         args.append(expression(idx,tokens,symTable,14))
                         if not match("operator",","):
                             break
-                    match("operator",")")
+                    require(idx, tokens, "operator", ")")
                     lhs = ASTNode("call",[lhs,*args],())
             elif match("operator","["):
                 lhs = ASTNode("index",[lhs,expression(idx,tokens,symTable)],())
-                match("operator","]")
+                require(idx, tokens, "operator", "]")
             elif match("operator","."):
                 tk = match("identifier")
                 lhs = ASTNode("attr",[lhs],(tk.value,))
@@ -608,12 +637,12 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
     
     if match("operator","{"):
         astnode = statements(idx,tokens,symTable)
-        match("operator","}")
+        require(idx, tokens, "operator", "}")
         return astnode
     elif match("identifier","if"):
-        match("operator","(")
+        require(idx, tokens, "operator", "(")
         cond = expression(idx,tokens,symTable,14)
-        match("operator",")")
+        require(idx, tokens, "operator", ")")
         iftrue = statement(idx,tokens,symTable)
         iffalse = None
         if match("identifier","else"):
@@ -622,50 +651,61 @@ def statement(idx: Ref,tokens: list[Token],symTable : SymTable) -> ASTNode:
             return ASTNode("ifelse",[cond,iftrue,iffalse],())
         return ASTNode("if",[cond,iftrue],())
     elif match("identifier","while"):
-        match("operator","(")
+        require(idx, tokens, "operator", "(")
         cond = expression(idx,tokens,symTable,14)
-        match("operator",")")
+        require(idx, tokens, "operator", ")")
         loop = statement(idx,tokens,symTable)
         return ASTNode("while",[cond,loop],())
     elif match("identifier","for"):
-        match("operator","(")
-        init_clause = declaration(idx,tokens,symTable)
-        match("operator",";")
-        cond_clause = expression(idx,tokens,symTable,14)
-        match("operator",";")
-        op_clause = expression(idx,tokens,symTable,14)
-        match("operator",")")
-        loop = statement(idx,tokens,symTable)
-        return ASTNode("for",[init_clause,cond_clause,op_clause,loop],())
+        require(idx, tokens, "operator", "(")
+        for_table = symTable.derive()
+        init_clause = None
+        if not match("operator", ";"):
+            snapshot = idx.val
+            is_declaration = parseBasetype(idx, tokens, for_table) is not None
+            idx.val = snapshot
+            init_clause = (declaration(idx, tokens, for_table) if is_declaration
+                           else expression(idx, tokens, for_table))
+            require(idx, tokens, "operator", ";")
+        cond_clause = ASTNode("integer", [], (1,))
+        if not match("operator", ";"):
+            cond_clause = expression(idx, tokens, for_table)
+            require(idx, tokens, "operator", ";")
+        op_clause = None
+        if not match("operator", ")"):
+            op_clause = expression(idx, tokens, for_table)
+            require(idx, tokens, "operator", ")")
+        loop = statement(idx,tokens,for_table)
+        return ASTNode("actions", [ASTNode("for",[init_clause,cond_clause,op_clause,loop],())], (for_table,))
     elif match("identifier","do"):
         loop = statement(idx,tokens,symTable)
-        match("identifier","while")
-        match("identifier","(")
+        require(idx, tokens, "identifier", "while")
+        require(idx, tokens, "operator", "(")
         cond = expression(idx,tokens,symTable,14)
-        match("identifier",")")
-        match("identifier",";")
+        require(idx, tokens, "operator", ")")
+        require(idx, tokens, "operator", ";")
         return ASTNode("do_while",[cond,loop],())
     elif match("identifier","return"):
-        retval = expression(idx,tokens,symTable,14)
-        match("operator",";")
+        retval = None if peek() and peek().value == ";" else expression(idx,tokens,symTable)
+        require(idx, tokens, "operator", ";")
         return ASTNode("ret",[retval],())
     elif match("identifier","break"):
-        match("operator",";")
+        require(idx, tokens, "operator", ";")
         return ASTNode("break",[],())
     elif match("identifier","continue"):
-        match("operator",";")
+        require(idx, tokens, "operator", ";")
         return ASTNode("continue",[],())
     else:
         snapshot = idx.val
         if parseBasetype(idx,tokens,symTable):
             idx.val = snapshot
             astnode = declaration(idx,tokens,symTable)
-            match("operator",";")
+            require(idx, tokens, "operator", ";")
             return astnode
         else:
             idx.val = snapshot
             expr = expression(idx,tokens,symTable)
-            match("operator",";")
+            require(idx, tokens, "operator", ";")
             return expr
 
 def program(idx: Ref,tokens: list[Token]) -> ASTNode:
