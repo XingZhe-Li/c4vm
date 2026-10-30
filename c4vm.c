@@ -1,26 +1,26 @@
+/*
+ * c4vm 的唯一解释器实现：普通构建从 .vm 文件运行程序；
+ * tools/build_matrix_in_matrix.py 定义 C4VM_EMBEDDED 后包含本文件，
+ * 复用相同的 run/load_mem，仅由生成的包装程序提供 code[] 和 main。
+ * 公共执行路径须保持在本项目 C 子集内，才能再次被编译成 VM 字节码。
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <memory.h>
 #include <unistd.h>
 #include <fcntl.h>
-
-#ifndef O_RDONLY
-#define O_RDONLY 0x0000
-#define O_CREAT  0x0100
-#define O_WRONLY 0x0001
-#define O_TRUNC  0x0200
-#endif
 
 // #define C4VM_DEBUG
 #define C4VM_NOWRITE
 // #define C4VM_VERBOSE
 
 struct c4vm {
+    /* pc/bp/sp 使用 8 字节字下标；寄存器中的 VM 地址使用字节偏移。 */
     long long  pc,bp,sp,reg;
     long long* base;
 };
 
+/* 编号顺序必须与 codegen.py 的 opcode_text 一致；现有编号不可随意重排。 */
 enum OPCODES { 
     NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
@@ -28,8 +28,25 @@ enum OPCODES {
     OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,OPCODE_END
 };
 
-int OPCODE_LEN = sizeof(enum OPCODES);
+/* 避免依赖前端尚未提供的 strchr 内置函数，两种入口共用同一实现。 */
+int contains_char(char *text, int value) {
+    while (*text) {
+        if (*text == value) return 1;
+        text++;
+    }
+    return 0;
+}
 
+/* 仅诊断出口区分宿主与嵌入环境；嵌入环境没有 stderr 对象。 */
+void vm_report(char *format, long long detail) {
+#ifdef C4VM_EMBEDDED
+    printf(format, detail);
+#else
+    fprintf(stderr, format, detail);
+#endif
+}
+
+/* sp 向低地址增长；跳转/返回地址在指令流和栈中均按字节保存。 */
 long long run(struct c4vm* vm) {
     while (1) {
         long long opcode = vm->base[vm->pc++];
@@ -57,7 +74,7 @@ long long run(struct c4vm* vm) {
             vm->pc  = vm->base[vm->pc] / 8;
         } else if (opcode == JSR) {
             vm->base[--vm->sp] = (vm->pc+1) * 8;
-            vm->pc = vm->base[vm->pc++] / 8;
+            vm->pc = vm->base[vm->pc] / 8;
         } else if (opcode == BZ) {
             vm->pc  = vm->reg ? vm->pc + 1 : (vm->base[vm->pc] / 8);
         } else if (opcode == BNZ) {
@@ -73,11 +90,12 @@ long long run(struct c4vm* vm) {
             vm->bp = vm->base[vm->sp++] / 8;
             vm->pc = vm->base[vm->sp++] / 8;
         } else if (opcode == LI) {
-            vm->reg = *(long long*)((char*)vm->base + vm->reg);
+            /* 结构体字段紧密排列，memcpy 允许从未对齐的字节地址读写。 */
+            memcpy(&vm->reg, (char*)vm->base + vm->reg, sizeof(vm->reg));
         } else if (opcode == LC) {
-            vm->reg = ((char*)vm->base)[vm->reg];
+            vm->reg = ((signed char*)vm->base)[vm->reg];
         } else if (opcode == SI) {
-            *(long long*)((char*)vm->base + vm->base[vm->sp++]) = vm->reg;
+            memcpy((char*)vm->base + vm->base[vm->sp++], &vm->reg, sizeof(vm->reg));
         } else if (opcode == SC) {
             *((char*)vm->base + vm->base[vm->sp++]) = vm->reg;
         } else if (opcode == PSH) {
@@ -103,7 +121,7 @@ long long run(struct c4vm* vm) {
         } else if (opcode == GE) {
             vm->reg = vm->base[vm->sp++] >= vm->reg;
         } else if (opcode == SHL) {
-            vm->reg = vm->base[vm->sp++] << vm->reg;
+            vm->reg = (unsigned long long)vm->base[vm->sp++] << vm->reg;
         } else if (opcode == SHR) {
             vm->reg = vm->base[vm->sp++] >> vm->reg;
         } else if (opcode == ADD) {
@@ -159,7 +177,7 @@ long long run(struct c4vm* vm) {
         else if (opcode == JREG) {
             vm->pc  = vm->reg / 8;
         } else if (opcode == JSRR) {
-            vm->base[--vm->sp] = (vm->pc+1) * 8;
+            vm->base[--vm->sp] = vm->pc * 8;
             vm->pc = vm->reg  / 8;
         } else if (opcode == NOT) {
             vm->reg = ~vm->reg;
@@ -170,7 +188,9 @@ long long run(struct c4vm* vm) {
 #ifdef C4VM_DEBUG
             printf("OPEN IS FORBIDDEN WHEN WITH C4VM_DEBUG\n");
 #else
-            vm->reg = open((char*)vm->base + vm->base[vm->sp + 1], vm->base[vm->sp]);
+            long long count = vm->base[vm->pc + 1];
+            vm->reg = open((char*)vm->base + vm->base[vm->sp + count - 1],
+                           vm->base[vm->sp + count - 2], count == 3 ? vm->base[vm->sp] : 0);
 #endif
         } else if (opcode == READ) {
             vm->reg = read(vm->base[vm->sp + 2], (char*)vm->base + vm->base[vm->sp + 1], vm->base[vm->sp]);
@@ -181,39 +201,45 @@ long long run(struct c4vm* vm) {
             vm->reg = close(vm->base[vm->sp]);
 #endif
         } else if (opcode == PRTF) {
+            /* 编译器紧接着生成 ADJ argc；用它恢复从左到右压栈的参数。 */
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
-            long long argpos = 2;
+            long long args[5] = {0};
+            long long count = vm->base[vm->pc + 1] - 1;
+            if (count > 5 || count < 0) {
+                vm_report("printf supports a format and at most five arguments\n", 0);
+                return 1;
+            }
+            for (long long i = 0; i < count; i++) args[i] = vm->base[arg_offset - 2 - i];
+            long long argpos = 0;
             char *fmt = (char*)vm->base + vm->base[arg_offset - 1];
             for (char *p = fmt; *p != 0; p++) {
-                if (argpos > 6) break;
                 if (*p == '%') {
                     p++;
-                    while (*p != 0 && !(*p >= 'a' && *p <= 'z') && !(*p >= 'A' && *p <= 'Z')) {
-                        p++;
+                    if (*p == '%') continue;
+                    while (*p && contains_char("-+ #0.123456789hljztL", *p)) p++;
+                    if (!*p || !contains_char("diuoxXcsp", *p) || argpos >= count) {
+                        vm_report("unsupported printf format or missing argument\n", 0);
+                        return 1;
                     }
                     if (*p == 's') {
-                        vm->base[arg_offset - argpos] += (long long)vm->base;
+                        args[argpos] += (long long)vm->base;
                     }
                     argpos++;
-                    if (*p == 0) break; 
                 }
             }
             vm->reg = printf(
-                fmt,
-                vm->base[arg_offset - 2],
-                vm->base[arg_offset - 3],
-                vm->base[arg_offset - 4],
-                vm->base[arg_offset - 5],
-                vm->base[arg_offset - 6]
+                fmt, args[0], args[1], args[2], args[3], args[4]
             );
         } else if (opcode == MALC) {
-            vm->reg = (long long) malloc(vm->base[vm->sp]) - (long long)vm->base;
+            /* libc 返回宿主指针；编码为相对 base 的偏移，失败则保留 VM 的 0。 */
+            void *allocation = malloc(vm->base[vm->sp]);
+            vm->reg = allocation ? (long long)allocation - (long long)vm->base : 0;
         } else if (opcode == FREE) {
-            free(vm->base + vm->base[vm->sp]);
+            if (vm->base[vm->sp]) free((char*)vm->base + vm->base[vm->sp]);
         } else if (opcode == MSET) {
             vm->reg = (long long) memset((char *)vm->base + vm->base[vm->sp + 2],vm->base[vm->sp + 1],vm->base[vm->sp]) - (long long)vm->base;
         } else if (opcode == MCPY) {
-            memcpy((char *)vm->base + vm->base[vm->sp + 2],(char *) vm->base + vm->base[vm->sp + 1],vm->base[vm->sp]);
+            vm->reg = (long long)memcpy((char *)vm->base + vm->base[vm->sp + 2],(char *) vm->base + vm->base[vm->sp + 1],vm->base[vm->sp]) - (long long)vm->base;
         } else if (opcode == MCMP) {
             vm->reg = memcmp((char*)vm->base + vm->base[vm->sp + 2],(char*)vm->base + vm->base[vm->sp + 1],vm->base[vm->sp]);
         } else if (opcode == EXIT) {
@@ -229,12 +255,26 @@ long long run(struct c4vm* vm) {
         } else if (opcode == SLEN) {
             vm->reg = strlen((char *)vm->base + vm->base[vm->sp]);
         } else if (opcode == SSTR) {
-            vm->reg = (long long)((void*)strstr((char *)vm->base + vm->base[vm->sp + 1],(char *)vm->base + vm->base[vm->sp]) - (void*)vm->base);
+            char *found = strstr((char *)vm->base + vm->base[vm->sp + 1],(char *)vm->base + vm->base[vm->sp]);
+            vm->reg = found ? (long long)found - (long long)vm->base : 0;
         } else if (opcode == SCAT) {
-            vm->reg = (long long)((void*)strcat((char *)vm->base + vm->base[vm->sp + 1],(char *)vm->base + vm->base[vm->sp]) - (void*)vm->base);
+            char *destination = (char *)vm->base + vm->base[vm->sp + 1];
+            char *source = (char *)vm->base + vm->base[vm->sp];
+            /* 使用公共子集可编译的拷贝，避免引入另一份宿主专用实现。 */
+            long long length = strlen(destination);
+            while (*source) destination[length++] = *source++;
+            destination[length] = 0;
+            vm->reg = vm->base[vm->sp + 1];
         } else if (opcode == SCNF) {
             long long arg_offset = vm->sp + vm->base[vm->pc + 1];
-            vm->reg = scanf((char*)vm->base + vm->base[arg_offset-1],(char*)vm->base + vm->base[arg_offset-2],(char*)vm->base + vm->base[arg_offset-3],(char*)vm->base + vm->base[arg_offset-4],(char*)vm->base + vm->base[arg_offset-5],(char*)vm->base + vm->base[arg_offset-6]);
+            void *args[5] = {0};
+            long long count = vm->base[vm->pc + 1] - 1;
+            if (count < 0 || count > 5) {
+                vm_report("scanf supports a format and at most five destinations\n", 0);
+                return 1;
+            }
+            for (long long i = 0; i < count; i++) args[i] = (char*)vm->base + vm->base[arg_offset - 2 - i];
+            vm->reg = scanf((char*)vm->base + vm->base[arg_offset-1], args[0], args[1], args[2], args[3], args[4]);
         } else if (opcode == WRIT) {
 #ifdef C4VM_DEBUG
             printf("WRIT IS FORBIDDEN WHEN WITH C4VM_DEBUG\n");
@@ -251,19 +291,19 @@ long long run(struct c4vm* vm) {
         
         // Unknown instruction
         else {
-#ifdef C4VM_DEBUG
-            printf("unknown instruction = %lld!\n",opcode);
-#endif
+            vm_report("unknown instruction = %lld\n", opcode);
+            return 1;
         }
         
-        // FOR DEBUG
-        // printf("vm->sp = %lld (%lld,%lld,%lld) , ",vm->sp,vm->base[vm->sp],vm->base[vm->sp+1],vm->base[vm->sp+2]);
-        // printf("vm->pc = %lld (%lld,%lld,%lld)",vm->pc,vm->base[vm->pc],vm->base[vm->pc+1],vm->base[vm->pc+2]);
-        // getchar();
     }
 }
 
+/* base 同时容纳镜像和预留栈；嵌入入口不传递 argc/argv。space 单位为字节。 */
 long long load_mem(long long* base,long long space) {
+    if (space < 32 || space % 8 != 0) {
+        vm_report("invalid embedded VM memory size\n", 0);
+        return 1;
+    }
     struct c4vm vm = {
         .bp   = space / sizeof(long long),
         .sp   = space / sizeof(long long),
@@ -273,6 +313,7 @@ long long load_mem(long long* base,long long space) {
     };
 
     long long exit_addr = (vm.sp - 2) * 8;
+    /* main 执行 LEV 后返回到栈尾的 PSH/EXIT，将 reg 作为退出状态。 */
     vm.base[--vm.sp] = EXIT;
     vm.base[--vm.sp] = PSH;
     vm.base[--vm.sp] = exit_addr;
@@ -280,75 +321,42 @@ long long load_mem(long long* base,long long space) {
     return run(&vm);
 }
 
-long long load(char* filename) {
-    long long fd = open(filename,O_RDONLY);
-    if (fd == -1) {
-        printf("load failed");
-        exit(1);
-    }
-
-    long long size = 0;
-    if (read(fd, &size, sizeof(long long)) != sizeof(long long)) {
-        printf("Read size failed\n");
-        exit(1);
-    }
-    
-    long long* base = malloc(size);
-    if (!base) {
-        printf("Malloc failed\n");
-        exit(1);
-    }
-
-    read(fd,base,size);
-    close(fd);
-
-    return load_mem(base,size);
-}
-
-void make(long long* base,long long size,long long space,char* filename) {
-    long long fd = open(filename,O_WRONLY | O_CREAT | O_TRUNC,0777);
-    if (fd == -1) {
-        printf("failed when creating file");
-        exit(1);
-    }
-
-    if (write(fd, &space, sizeof(long long)) != sizeof(long long)) {
-        printf("failed when writing header\n");
-        close(fd);
-        exit(1);
-    }
-
-    if (write(fd, base, size) != size) {
-        printf("failed when writing payload\n");
-        close(fd);
-        exit(1);
-    }
-
-    close(fd);
-    printf("Successfully created image: %s (%lld bytes written)\n", filename, size + 8);
-}
-
+/* 文件加载和宿主 main 不参与嵌套编译，避免依赖 FILE 等子集外类型。 */
+#ifndef C4VM_EMBEDDED
 long long load_with_args(char* filename,long long argc,char** argv) {
-    long long fd = open(filename,O_RDONLY);
-    if (fd == -1) {
-        printf("load failed");
-        exit(1);
+    FILE *image = fopen(filename, "rb");
+    if (!image) {
+        perror(filename);
+        return 1;
     }
-
     long long size = 0;
-    if (read(fd, &size, sizeof(long long)) != sizeof(long long)) {
-        printf("Read size failed\n");
-        exit(1);
+    /* 文件头为 8 字节小端虚拟容量；文件剩余部分为原始镜像，不含预留栈。 */
+    long long frame = (argc + 7) * 8;
+    if (fread(&size, 1, 8, image) != 8 || size < frame || size % 8 != 0 ||
+        fseek(image, 0, SEEK_END) != 0) {
+        fprintf(stderr, "invalid VM image header\n");
+        fclose(image);
+        return 1;
     }
-    
-    long long* base = malloc(size);
+    long payload = ftell(image) - 8;
+    if (payload < 16 || payload > size - frame || fseek(image, 8, SEEK_SET) != 0) {
+        fprintf(stderr, "invalid VM image payload or insufficient stack space\n");
+        fclose(image);
+        return 1;
+    }
+    long long *base = calloc(1, size);
     if (!base) {
-        printf("Malloc failed\n");
-        exit(1);
+        fprintf(stderr, "cannot allocate VM memory\n");
+        fclose(image);
+        return 1;
     }
-
-    read(fd,base,size);
-    close(fd);
+    if (fread(base, 1, payload, image) != (size_t)payload) {
+        fprintf(stderr, "cannot read VM image payload\n");
+        free(base);
+        fclose(image);
+        return 1;
+    }
+    fclose(image);
 
     struct c4vm vm = {
         .bp   = size / sizeof(long long),
@@ -361,22 +369,27 @@ long long load_with_args(char* filename,long long argc,char** argv) {
     long long exit_addr = (vm.sp - 2) * 8;
     vm.base[--vm.sp] = EXIT;
     vm.base[--vm.sp] = PSH;
+    vm.base[--vm.sp] = 0; /* argv[argc] */
     for (int i = argc - 1 ; i >= 0 ; i --) {
         vm.base[--vm.sp] = (long long)argv[i] - (long long)vm.base;
     }
     long long argv_virt = vm.sp * 8;
+    /* 与普通调用相同，按声明顺序压入 argc/argv，最后压入返回地址。 */
     vm.base[--vm.sp] = argc;
     vm.base[--vm.sp] = argv_virt;
     vm.base[--vm.sp] = exit_addr;
 
-    return run(&vm);
+    long long result = run(&vm);
+    free(base);
+    return result;
 }
 
 int main(int argc,char** argv) {
     if (argc == 1) {
         printf("usage:\tc4vm [image]\n");
     } else {
-        load_with_args(argv[1],argc-1,argv+1);
+        return (int)load_with_args(argv[1],argc-1,argv+1);
     }
     return 0;
 }
+#endif
