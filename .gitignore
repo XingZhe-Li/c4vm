@@ -1,2 +1,13 @@
 .vscode
 __pycache__
+*.py[cod]
+*.exe
+*.vm
+build/
+.venv/
+.test-tmp/
+.test-tools/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
