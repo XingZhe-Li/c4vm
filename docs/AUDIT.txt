@@ -1,0 +1,92 @@
+首轮维护记录（2026-10-30）
+==========================
+
+基线：XingZhe-Li/c4vm，9d118d9。
+范围：保留原教学架构，建立可重复的构建/测试，修复已复现的错误编译与运行问题。
+
+修复与回归用例
+----------------
+1. 词法：文件开头的字符串越界；小写十六进制、0X、.5、组合科学计数法；
+   未闭合引号/注释与非法字符被吞掉。见 LexerTests。
+2. 预处理：嵌套禁用条件只检查栈顶，禁用块仍执行 define/include，空宏 None
+   引发异常，undef 未定义宏引发 KeyError，缺失头文件被忽略。现在支持对象宏
+   递归展开、循环抑制、头文件保护与 include 深度诊断。见 PreprocessorTests。
+3. include 原先相对于编译器目录，现在相对于源文件及当前头文件解析。
+   见 test_source_relative_include、test_nested_relative_include。
+4. 解析器：缺少分隔符时未前进，可无限循环；do/while 匹配了错误的 token 类型；
+   for 不支持表达式初始化及空子句；for 声明泄漏作用域；main(void) 被当成一个
+   实参。见 invalid_source、for_expr、for_empty、sizeof_type。
+5. 结合性：a=b=7 错误地左结合，三目表达式嵌套不正确。见 assignment_chain、ternary。
+6. 复合赋值 a[i++]+=5 重复求值左侧，得到 i=2、a[0]=25；现为 i=1、a[0]=15。
+   见 compound_side_effect。
+7. do/while 中 continue 跳回循环体，绕过条件；现在跳到条件。见 do_continue。
+8. &&/|| 返回操作数而非 0/1，虽短路但参与算术会错。见 logic。
+9. 全局数组用 LEA 加了帧基址；多维数组取值未保留子数组地址；char* 解引用
+   按 8 字节读取；unsigned char 的大小及读取符号错误。见 global_array、matrix、
+   char_deref、unsigned_char_size、unsigned_byte、array_parameter。
+10. 指针 ++/-- 没乘元素大小；指针相减错误地乘了右地址；数组算术没衰减。
+    见 pointer_step、pointer_difference、array_arithmetic。
+11. 用户函数返回类型被 C_Var 包装而读取失败；函数值被解引用为指令；全局函数
+    指针被当作直接调用。见 typed_call、function_pointer、global_function_pointer。
+12. sizeof 只处理变量/类型，无法处理表达式；现在可处理类型/表达式，且不执行
+    sizeof(x++) 的副作用。见 sizeof_expression、sizeof_type。
+13. 静态负数/常量表达式被静默留为零，函数指针静态初始化抛异常；局部聚合的
+    省略元素未保证清零；初始化越界会覆盖相邻区域。见 negative_global、
+    constant_global、partial_local_init、designated_initializer、invalid_source。
+14. 浮点负号走整数减法，三目浮点结果未转换整数分支；联合体字段偏移按结构体
+    累加。见 negative_float、ternary_float、union。
+15. VM JSR 中对 pc 的修改未排序；JSRR 保存了多一个字的返回地址。
+    见 recursion、function_pointer、matrix_in_matrix。
+16. free 把字节偏移当作 long long 下标，导致非法释放；malloc/strstr 失败时
+    没返回 VM 空指针；memcpy 没设置返回值。见 heap、strstr_null、memcpy_return。
+17. printf/scanf 总是读取五个实参，少参数时越界；printf 对 %% 与 %s 的处理
+    错位；OPEN 的第三个 mode 参数导致取错文件名/flags。已修复取参及数量检查。
+    见 printf_literal_percent、scanf、matrix_in_matrix。
+18. 文件加载器未验证容量/读取量，Windows 未以二进制加载，分配区未初始化且
+    执行后泄漏；未知指令继续执行。现在检查基本头/载荷、零初始化并释放镜像。
+    见 invalid_images、unknown_opcode；LI/SI 改为 memcpy 以支持紧密排列的非对齐字段。
+19. 宿主 main 丢弃 VM 退出状态，main 隐式返回又保留上个表达式寄存器。
+    见 exit_status、implicit_main_return；argv 补上终止空指针，见 main_args。
+20. 原 build_chain 默认依赖缺失的 puzzle.c，产物散落根目录；bench 写死 Windows
+    shell 命令、忽略退出状态，并把 0/1 输出为素数。现可直接运行构建链和跨平台
+    基准；基准先核对三个实现的输出再计时。
+
+测试范围与实际结果
+--------------------
+本地 Windows x64、Python 3.13、GCC 15.2：74 个 unittest 全部通过；严格警告构建、
+CMake/CTest、Hello World、两层 VM 嵌套，以及三个质数筛实现输出一致均已验证。
+本轮 coverage 测得 Python 语句覆盖率 88.37%、分支覆盖率 82.69%，综合 86.51%
+（终端四舍五入显示 87%）。后续改动以重新生成的报告为准。
+coverage 测量 Python；它不代表 C 解释器的行覆盖率。测试未调用旧的预编译文件。
+GitHub Actions 只是已添加配置，尚未在远程触发，不能据此声称 Linux CI 已通过。
+本机 MinGW 缺少 libasan/libubsan，因此未能本地执行 sanitizer；配置了独立的
+Ubuntu ASan/UBSan CI 作后续验证，结果需以实际 CI 为准。
+
+尚需后续推进的事项
+--------------------
+1. 完整语义分析：声明/定义一致性、作用域重声明、参数/返回类型、未定义函数链接，
+   聚合类型合法性与更精确的源码位置。当前只是改善了常见错误的及时诊断。
+2. 浮点比较已改成明确拒绝；浮点条件、函数实参和返回类型转换仍不完整。
+   例如 double x=1 的局部隐式赋值现要求显式 cast，不能当完整 C 使用。
+3. 推导大小数组、局部字符串数组初始化、完整 typedef、递归结构体声明，以及
+   多维数组的扁平初始化需要独立设计，不应靠默默生成错误字节码支持。
+4. 整数类型仍采用原项目的 8 字节模型，大部分 unsigned 运算尚未区分有符号；
+   字面量后缀、标准整型提升、溢出边界与完整字符编码语义尚未实现。
+5. VM 未实现全面的栈/PC/内存访问验证，libc 桥接仍有限制。若要运行不可信镜像，
+   需要重新设计受限地址空间、资源限制及内置调用，不是本轮修复的目标。
+6. 操作码表仍同时存在于 C 解释器与 Python 代码生成器中，需要保持编号一致。
+
+解释器统一与工具迁移
+----------------------
+按维护要求，以 c4vm.c 为唯一解释器实现，移除 c4vmatrix.c。公共路径使用项目
+C 子集可编译的写法；C4VM_EMBEDDED 仅区分宿主文件入口和诊断输出，不维护另一套
+指令执行逻辑。移除嵌入路径原先附带的过时文件加载/写镜像函数。
+
+原 build_chain.py 已移为 tools/build_matrix_in_matrix.py，名称对应其实际用途。
+生成的 matrix.c/matrix_in_matrix.c 只含镜像、include 和 main，不再通过正则替换
+一份完整的解释器模板。原始镜像编译入口统一复用 compiler.compile_raw。
+补充了全部 Python/C 源文件的文件说明及地址单位、调用栈、镜像布局等必要注释。
+
+迁移后 76 个测试全部通过，包含两层嵌套执行、从其他工作目录调用工具、带空格的
+输出路径及拒绝覆盖输入源码；严格警告构建与 CMake/CTest 均通过。更新后的 Python
+语句/分支覆盖率分别为 87.81%/82.27%，综合 85.99%（显示为 86%），仍高于 80% 门槛。
