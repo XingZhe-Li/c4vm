@@ -25,7 +25,8 @@ enum OPCODES {
     NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
     OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
     FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,GETC,
-    OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,OPCODE_END
+    OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,
+    FEQ ,FNE ,FLT ,FGT ,FLE ,FGE ,U2F ,F2U ,OPCODE_END
 };
 
 /* 避免依赖前端尚未提供的 strchr 内置函数，两种入口共用同一实现。 */
@@ -57,7 +58,8 @@ long long run(struct c4vm* vm) {
                 &"NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
                 "FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,GETC,"
-                "OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,"[opcode * 5]
+                "OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,"
+                "FEQ ,FNE ,FLT ,FGT ,FLE ,FGE ,U2F ,F2U ,"[opcode * 5]
             );
             printf("[PC:%04lld] [SP:%04lld] [BP:%04lld] [REG:0x%llx (%lld)]\n", 
                vm->pc * 8, vm->sp * 8, vm->bp * 8, vm->reg, vm->reg);
@@ -125,11 +127,12 @@ long long run(struct c4vm* vm) {
         } else if (opcode == SHR) {
             vm->reg = vm->base[vm->sp++] >> vm->reg;
         } else if (opcode == ADD) {
-            vm->reg = vm->base[vm->sp++] + vm->reg;
+            /* 字运算按 64 位模运算保留位模式，避免无符号值经过宿主有符号溢出。 */
+            vm->reg = (unsigned long long)vm->base[vm->sp++] + vm->reg;
         } else if (opcode == SUB) {
-            vm->reg = vm->base[vm->sp++] - vm->reg;
+            vm->reg = (unsigned long long)vm->base[vm->sp++] - vm->reg;
         } else if (opcode == MUL) {
-            vm->reg = vm->base[vm->sp++] * vm->reg;
+            vm->reg = (unsigned long long)vm->base[vm->sp++] * vm->reg;
         } else if (opcode == DIV) {
             vm->reg = vm->base[vm->sp++] / vm->reg;
         } else if (opcode == MOD) {
@@ -171,6 +174,30 @@ long long run(struct c4vm* vm) {
             memcpy(&fbuf,&vm->reg,sizeof(long long));
             ibuf = (long long) fbuf;
             memcpy(&vm->reg,&ibuf,sizeof(long long));
+        } else if (opcode == U2F) {
+            unsigned long long ibuf; double fbuf;
+            memcpy(&ibuf, &vm->reg, 8);
+            fbuf = (double)ibuf;
+            memcpy(&vm->reg, &fbuf, 8);
+        } else if (opcode == F2U) {
+            unsigned long long ibuf; double fbuf;
+            memcpy(&fbuf, &vm->reg, 8);
+            ibuf = (unsigned long long)fbuf;
+            memcpy(&vm->reg, &ibuf, 8);
+        } else if (opcode == FEQ || opcode == FNE || opcode == FLT ||
+                   opcode == FGT || opcode == FLE || opcode == FGE) {
+            /* 解码为 double 后比较：+0.0 == -0.0，NaN 仅使 != 成立。
+             * 不能先相减或按整数位模式比较，否则负数、NaN 和无穷大会出错。
+             * 新指令追加在表尾，已有镜像的操作码编号保持不变。 */
+            double left, right;
+            memcpy(&right, &vm->reg, 8);
+            memcpy(&left, &vm->base[vm->sp++], 8);
+            if (opcode == FEQ) vm->reg = left == right;
+            else if (opcode == FNE) vm->reg = left != right;
+            else if (opcode == FLT) vm->reg = left < right;
+            else if (opcode == FGT) vm->reg = left > right;
+            else if (opcode == FLE) vm->reg = left <= right;
+            else vm->reg = left >= right;
         }
 
         // JMP with Register

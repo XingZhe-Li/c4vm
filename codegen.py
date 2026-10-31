@@ -13,7 +13,8 @@ opcode_text = '''
 NOP ,LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
 OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
 FADD,FSUB,FMUL,FDIV,I2F ,F2I ,JREG,JSRR,NOT ,WRIT,GETC,
-OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF
+OPEN,READ,CLOS,PRTF,MALC,FREE,MSET,MCPY,MCMP,EXIT,SCMP,SLEN,SSTR,SCAT,SCNF,
+FEQ ,FNE ,FLT ,FGT ,FLE ,FGE ,U2F ,F2U
 '''
 
 opcode = {v.strip() : i for i,v in enumerate(opcode_text.split(','))}
@@ -115,6 +116,7 @@ class CodegenContext:
     allocator   : Allocator
     symtable    : SymTable
     flowCtx     : FlowContext
+    return_type : Any = None
 
 def entry(astroot: ASTNode, verbose=False) -> bytes:
     """生成无文件头的原始镜像；verbose 仅控制调试字转储。"""
@@ -197,7 +199,7 @@ def codegen_function(ctx : CodegenContext, astnode : ASTNode):
         new_allocator.symmap[arg_name] = ("stack",8 * (arg_count - 1 - idx) + 16)
 
     ctx = CodegenContext(
-        ctx.image,ctx.literalpool,new_allocator,func_symtable,ctx.flowCtx
+        ctx.image,ctx.literalpool,new_allocator,func_symtable,ctx.flowCtx,func_type.rettype
     )
     codegen_actions(ctx,astnode.children[0])
 
@@ -212,7 +214,7 @@ def codegen_actions(ctx : CodegenContext, astnode : ASTNode):
     symtable : SymTable = astnode.metas[0]
     new_allocator       = Allocator(ctx.allocator,ctx.allocator.backend)
     ctx = CodegenContext(
-        ctx.image,ctx.literalpool,new_allocator,symtable,ctx.flowCtx
+        ctx.image,ctx.literalpool,new_allocator,symtable,ctx.flowCtx,ctx.return_type
     )
     
     # build symbol table for scope
@@ -245,6 +247,29 @@ builtin_arity = {
     'strstr': (2, 2), 'strcat': (2, 2), 'scanf': (1, 6), 'write': (3, 3), 'getchar': (0, 0),
 }
 
+# 内置函数的固定参数也参与隐式转换；printf/scanf 的可变部分保留实参类型。
+VM_INT = C_Basetype("long long")
+VM_DOUBLE = C_Basetype("double")
+VM_SIZE = C_Basetype("unsigned long long")
+VM_VOID = C_Basetype("void")
+VM_POINTER = C_Pointer(VM_VOID)
+VM_STRING = C_Pointer(C_Basetype("char"))
+builtin_signatures = {
+    'open': (VM_INT, [VM_STRING, VM_INT, VM_INT]),
+    'read': (VM_INT, [VM_INT, VM_POINTER, VM_SIZE]),
+    'write': (VM_INT, [VM_INT, VM_POINTER, VM_SIZE]),
+    'close': (VM_INT, [VM_INT]), 'exit': (VM_VOID, [VM_INT]),
+    'printf': (VM_INT, [VM_STRING]), 'scanf': (VM_INT, [VM_STRING]),
+    'getchar': (VM_INT, []), 'malloc': (VM_POINTER, [VM_SIZE]),
+    'free': (VM_VOID, [VM_POINTER]),
+    'memset': (VM_POINTER, [VM_POINTER, VM_INT, VM_SIZE]),
+    'memcpy': (VM_POINTER, [VM_POINTER, VM_POINTER, VM_SIZE]),
+    'memcmp': (VM_INT, [VM_POINTER, VM_POINTER, VM_SIZE]),
+    'strcmp': (VM_INT, [VM_STRING, VM_STRING]), 'strlen': (VM_SIZE, [VM_STRING]),
+    'strstr': (VM_STRING, [VM_STRING, VM_STRING]), 'strcat': (VM_STRING, [VM_STRING, VM_STRING]),
+}
+
+
 def codegen_builtin_funcs(ctx : CodegenContext, astnode: ASTNode):
     func_ast  : ASTNode = astnode.children[0]
     args_cnt  = len(astnode.children) - 1
@@ -274,6 +299,90 @@ def is_byte(var_type):
 def is_floating(var_type):
     return type(var_type) == C_Basetype and var_type.typename in ["float", "double"]
 
+def numeric_type(var_type):
+    var_type = unpack_C_Var(var_type)
+    return var_type.oftype if type(var_type) == C_Const else var_type
+
+def is_integer(var_type):
+    return type(var_type) == C_Enum or (type(var_type) == C_Basetype
+            and var_type.typename not in ["void", "float", "double"])
+
+def is_unsigned(var_type):
+    return type(var_type) == C_Basetype and var_type.typename.startswith("unsigned")
+
+def arithmetic_type(left_type, right_type):
+    if is_floating(left_type) or is_floating(right_type):
+        return VM_DOUBLE
+    # 字符先提升到 VM 的整数类型；其余整型均为 64 位，保留 unsigned 属性。
+    return VM_SIZE if any(is_unsigned(value) and not is_byte(value)
+                          for value in [left_type, right_type]) else VM_INT
+
+def convert_value(ctx, source_type, target_type):
+    """将 reg 中的数值转换到目标类型；赋值、初始化、调用和返回共用此入口。"""
+    source_type, target_type = numeric_type(source_type), numeric_type(target_type)
+    if is_floating(target_type) and is_integer(source_type):
+        ctx.image.extend(i64(opcode["U2F" if is_unsigned(source_type) else "I2F"]))
+    elif is_integer(target_type) and is_floating(source_type):
+        ctx.image.extend(i64(opcode["F2U" if is_unsigned(target_type) and not is_byte(target_type) else "F2I"]))
+    elif is_floating(source_type) != is_floating(target_type) and target_type != VM_VOID:
+        raise ValueError("floating-point conversion requires an integer or floating-point type")
+    if is_byte(target_type):
+        normalize_byte(ctx, target_type)
+
+def codegen_converted(ctx, node, target_type):
+    codegen_action(ctx, node)
+    convert_value(ctx, ast_type(ctx, node), target_type)
+
+def codegen_condition(ctx, node):
+    """浮点真值按与 0.0 不等判断，避免把 -0.0 当真或将 0.5 截断为假。"""
+    codegen_action(ctx, node)
+    if is_floating(numeric_type(ast_type(ctx, node))):
+        ctx.image.extend(i64(opcode["PSH"]) + i64(opcode["IMM"]) + f64(0.0) + i64(opcode["FNE"]))
+
+def call_signature(ctx, func_ast):
+    if func_ast.nodeType == "var" and func_ast.metas[0] in builtin_signatures:
+        result, arguments = builtin_signatures[func_ast.metas[0]]
+        return C_Func(result, [(argument, None) for argument in arguments])
+    func_type = unpack_C_Var(ast_type(ctx, func_ast))
+    if type(func_type) == C_Pointer:
+        func_type = func_type.oftype
+    if type(func_type) != C_Func:
+        raise ValueError("called expression is not a function")
+    return func_type
+
+def codegen_arithmetic(ctx, operation, lhs, rhs):
+    """数值运算统一提升到 double；指针加减仍按元素大小计算偏移。"""
+    left_type, right_type = [decay(numeric_type(ast_type(ctx, node))) for node in [lhs, rhs]]
+    left_pointer, right_pointer = type(left_type) == C_Pointer, type(right_type) == C_Pointer
+    if left_pointer or right_pointer:
+        if operation == "sub" and left_pointer and right_pointer:
+            codegen_action(ctx, lhs)
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_action(ctx, rhs)
+            ctx.image.extend(i64(opcode["SUB"]) + i64(opcode["PSH"]))
+            ctx.image.extend(i64(opcode["IMM"]) + i64(type_size(left_type.oftype)) + i64(opcode["DIV"]))
+            return
+        if left_pointer and is_integer(right_type) and operation in ["add", "sub"]:
+            pointer, index, pointer_type = lhs, rhs, left_type
+        elif right_pointer and is_integer(left_type) and operation == "add":
+            pointer, index, pointer_type = rhs, lhs, right_type
+        else:
+            raise ValueError("invalid operands for pointer arithmetic")
+        codegen_action(ctx, pointer)
+        ctx.image.extend(i64(opcode["PSH"]))
+        codegen_action(ctx, index)
+        ctx.image.extend(i64(opcode["PSH"]) + i64(opcode["IMM"]) + i64(type_size(pointer_type.oftype)))
+        ctx.image.extend(i64(opcode["MUL"]) + i64(opcode[operation.upper()]))
+        return
+    if not all(is_integer(value) or is_floating(value) for value in [left_type, right_type]):
+        raise ValueError("arithmetic requires numeric operands")
+    floating = is_floating(left_type) or is_floating(right_type)
+    result_type = arithmetic_type(left_type, right_type)
+    codegen_converted(ctx, lhs, result_type)
+    ctx.image.extend(i64(opcode["PSH"]))
+    codegen_converted(ctx, rhs, result_type)
+    ctx.image.extend(i64(opcode[("F" if floating else "") + operation.upper()]))
+
 def decay(var_type):
     if type(var_type) == C_Array:
         child = var_type.oftype if len(var_type.dimension) == 1 else C_Array(var_type.oftype, var_type.dimension[1:])
@@ -300,25 +409,7 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
     if astnode.nodeType == "cached_value":
         return astnode.metas[0]
     if astnode.nodeType == "call":
-        func_ast : ASTNode = astnode.children[0]
-        if func_ast.nodeType == "var":
-            func_name = func_ast.metas[0]
-            
-            symtuple = ctx.symtable.get((func_name,))
-            if symtuple is None: 
-                # for built-in functions
-                return C_Basetype("long long") # conventionally , built-in functions return long long
-            else:
-                _ , func_type = symtuple
-                func_type = unpack_C_Var(func_type)
-                if type(func_type) == C_Pointer:
-                    func_type = func_type.oftype
-                if type(func_type) != C_Func:
-                    raise ValueError(f"{func_name} is not a function")
-                ret_type = func_type.rettype
-                return ret_type
-        else:
-            return None
+        return call_signature(ctx, astnode.children[0]).rettype
     elif astnode.nodeType == "var":
         var_name = astnode.metas[0]
         symbol = ctx.symtable.get((var_name,))
@@ -358,7 +449,7 @@ def ast_type(ctx: CodegenContext,astnode : ASTNode):
                 return ltype
             if type(rtype) == C_Pointer and type(ltype) != C_Pointer:
                 return rtype
-        return C_Basetype("long long")
+        return arithmetic_type(numeric_type(ltype), numeric_type(rtype))
     elif astnode.nodeType in ["assign", "compound_assign"]:
         lhs = astnode.children[0]
         return ast_type(ctx,lhs)
@@ -487,8 +578,15 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         func_ast  : ASTNode = astnode.children[0]
         args_asts : ASTNode = astnode.children[1:]
 
-        for arg_ast in args_asts:
-            codegen_action(ctx,arg_ast)
+        signature = call_signature(ctx, func_ast)
+        builtin = func_ast.nodeType == "var" and func_ast.metas[0] in builtin_funcs
+        if not builtin and len(args_asts) != len(signature.argtype):
+            raise ValueError(f"function expects {len(signature.argtype)} arguments, got {len(args_asts)}")
+        for index, arg_ast in enumerate(args_asts):
+            if index < len(signature.argtype):
+                codegen_converted(ctx, arg_ast, signature.argtype[index][0])
+            else:
+                codegen_action(ctx,arg_ast)
             ctx.image.extend(i64(opcode["PSH"]))
 
         if func_ast.nodeType == "var": # calling with function name
@@ -537,161 +635,8 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
             solve_addr(ctx, astnode)
             load_value(ctx, unpack_C_Var(var_type))
 
-    elif astnode.nodeType == "add":
-        lhs = astnode.children[0]
-        rhs = astnode.children[1]
-
-        ltype = decay(unpack_C_Var(ast_type(ctx,lhs)))
-        rtype = decay(unpack_C_Var(ast_type(ctx,rhs)))
-
-        ltype_is_pointer = type(ltype) == C_Pointer
-        rtype_is_pointer = type(rtype) == C_Pointer
-        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
-        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
-        
-        if ltype_is_pointer:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            elemsize = type_size(ltype.oftype)
-            ctx.image.extend(i64(opcode["PSH"]))
-            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
-            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
-        elif rtype_is_pointer:
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,lhs)
-            elemsize = type_size(rtype.oftype)
-            ctx.image.extend(i64(opcode["PSH"]))
-            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
-            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["ADD"]))
-        elif ltype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            if not rtype_is_double:
-                ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["FADD"]))
-        elif rtype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["FADD"]))
-        else:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["ADD"]))
-
-    elif astnode.nodeType == "sub":
-        lhs = astnode.children[0]
-        rhs = astnode.children[1]
-
-        ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,rhs))
-
-        ltype_is_pointer = type(ltype) == C_Pointer
-        rtype_is_pointer = type(rtype) == C_Pointer
-        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
-        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
-        
-        if ltype_is_pointer and rtype_is_pointer:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["SUB"]) + i64(opcode["PSH"]))
-            ctx.image.extend(i64(opcode["IMM"]) + i64(type_size(ltype.oftype)) + i64(opcode["DIV"]))
-        elif ltype_is_pointer:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            elemsize = type_size(ltype.oftype)
-            ctx.image.extend(i64(opcode["PSH"]))
-            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
-            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["SUB"]))
-        elif rtype_is_pointer:
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,lhs)
-            elemsize = type_size(rtype.oftype)
-            ctx.image.extend(i64(opcode["PSH"]))
-            ctx.image.extend(i64(opcode["IMM"]) + i64(elemsize))
-            ctx.image.extend(i64(opcode["MUL"]) + i64(opcode["SUB"]))
-        elif ltype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            if not rtype_is_double:
-                ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["FSUB"]))
-        elif rtype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["FSUB"]))
-        else:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["SUB"]))
-
-    elif astnode.nodeType == "mul":
-        lhs = astnode.children[0]
-        rhs = astnode.children[1]
-        ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,rhs))
-
-        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
-        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
-
-        if ltype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            if not rtype_is_double:
-                ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["FMUL"]))
-        elif rtype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["FMUL"]))
-        else:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["MUL"]))
-
-    elif astnode.nodeType == "div":
-        lhs = astnode.children[0]
-        rhs = astnode.children[1]
-        ltype = unpack_C_Var(ast_type(ctx,lhs))
-        rtype = unpack_C_Var(ast_type(ctx,rhs))
-
-        ltype_is_double  = type(ltype) == C_Basetype and ltype.typename in ["float","double"]
-        rtype_is_double  = type(rtype) == C_Basetype and rtype.typename in ["float","double"] 
-
-        if ltype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            if not rtype_is_double:
-                ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["FDIV"]))
-        elif rtype_is_double:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["I2F"]))
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["FDIV"]))
-        else:
-            codegen_action(ctx,lhs)
-            ctx.image.extend(i64(opcode["PSH"]))
-            codegen_action(ctx,rhs)
-            ctx.image.extend(i64(opcode["DIV"]))
+    elif astnode.nodeType in ["add", "sub", "mul", "div"]:
+        codegen_arithmetic(ctx, astnode.nodeType, *astnode.children)
 
     elif astnode.nodeType == "mod":
         lhs = astnode.children[0]
@@ -754,29 +699,41 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "neg":
         lhs = astnode.children[0]
-
-        ctx.image.extend(i64(opcode["IMM"]) + i64(0) + i64(opcode["PSH"]))
-        codegen_action(ctx,lhs)
-        ctx.image.extend(i64(opcode["FSUB" if is_floating(unpack_C_Var(ast_type(ctx,lhs))) else "SUB"]))
+        if is_floating(numeric_type(ast_type(ctx, lhs))):
+            # 翻转 binary64 符号位，保留 -0.0 和 NaN；0.0 - x 无法保留正负零。
+            codegen_action(ctx, lhs)
+            ctx.image.extend(i64(opcode["PSH"]) + i64(opcode["IMM"]) + i64(-(1 << 63)) + i64(opcode["XOR"]))
+        elif lhs.nodeType == "integer":
+            # -2^63 的正值部分超出有符号字范围，直接编码负字面量。
+            ctx.image.extend(i64(opcode["IMM"]) + i64(-lhs.metas[0]))
+        else:
+            ctx.image.extend(i64(opcode["IMM"]) + i64(0) + i64(opcode["PSH"]))
+            codegen_action(ctx,lhs)
+            ctx.image.extend(i64(opcode["SUB"]))
 
     elif astnode.nodeType in ["eq","ne","lt","gt","le","ge"]:
         lhs = astnode.children[0]
         rhs = astnode.children[1]
-        if any(is_floating(unpack_C_Var(ast_type(ctx, operand))) for operand in [lhs, rhs]):
-            raise ValueError("floating-point comparisons are not implemented")
-        codegen_action(ctx,lhs)
+        floating = any(is_floating(numeric_type(ast_type(ctx, operand))) for operand in [lhs, rhs])
+        if floating:
+            codegen_converted(ctx, lhs, VM_DOUBLE)
+        else:
+            codegen_action(ctx,lhs)
         ctx.image.extend(i64(opcode["PSH"]))
-        codegen_action(ctx,rhs)
-        ctx.image.extend(i64(opcode[astnode.nodeType.upper()]))
+        if floating:
+            codegen_converted(ctx, rhs, VM_DOUBLE)
+        else:
+            codegen_action(ctx,rhs)
+        ctx.image.extend(i64(opcode[("F" if floating else "") + astnode.nodeType.upper()]))
 
     elif astnode.nodeType == "and":
         lhs = astnode.children[0]
         rhs = astnode.children[1]
         
-        codegen_action(ctx,lhs)
+        codegen_condition(ctx,lhs)
         ctx.image.extend(i64(opcode["BZ"]))
         bz_pos = ctx.image.extend(i64(0))
-        codegen_action(ctx,rhs)
+        codegen_condition(ctx,rhs)
         ctx.image.block[bz_pos:bz_pos + 8] = i64(len(ctx.image.block))
         normalize_bool(ctx)
 
@@ -784,17 +741,17 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         lhs = astnode.children[0]
         rhs = astnode.children[1]
         
-        codegen_action(ctx,lhs)
+        codegen_condition(ctx,lhs)
         ctx.image.extend(i64(opcode["BNZ"]))
         bz_pos = ctx.image.extend(i64(0))
-        codegen_action(ctx,rhs)
+        codegen_condition(ctx,rhs)
         ctx.image.block[bz_pos:bz_pos + 8] = i64(len(ctx.image.block))
         normalize_bool(ctx)
 
     elif astnode.nodeType == "not":
         lhs = astnode.children[0]
         ctx.image.extend(i64(opcode["IMM"]) + i64(0) + i64(opcode["PSH"]))
-        codegen_action(ctx,lhs)
+        codegen_condition(ctx,lhs)
         ctx.image.extend(i64(opcode["EQ"]))
 
     elif astnode.nodeType == "comma":
@@ -828,7 +785,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "ret":
         if astnode.children[0] is not None:
-            codegen_action(ctx,astnode.children[0])
+            codegen_converted(ctx, astnode.children[0], ctx.return_type)
         ctx.image.extend(i64(opcode["LEV"]))
 
     elif astnode.nodeType == "attr":
@@ -844,18 +801,18 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     elif astnode.nodeType in ["cond","ifelse"] :
         cond_ast , tast , fast = astnode.children
         floating_result = astnode.nodeType == "cond" and is_floating(ast_type(ctx, astnode))
-        codegen_action(ctx,cond_ast)
+        codegen_condition(ctx,cond_ast)
         ctx.image.extend(i64(opcode["BZ"]))
         fpos  = ctx.image.extend(i64(0))
         codegen_action(ctx,tast)
-        if floating_result and not is_floating(unpack_C_Var(ast_type(ctx, tast))):
-            ctx.image.extend(i64(opcode["I2F"]))
+        if floating_result:
+            convert_value(ctx, ast_type(ctx, tast), VM_DOUBLE)
         ctx.image.extend(i64(opcode["JMP"]))
         tpos  = ctx.image.extend(i64(0))
         fdest = len(ctx.image.block)
         codegen_action(ctx,fast)
-        if floating_result and not is_floating(unpack_C_Var(ast_type(ctx, fast))):
-            ctx.image.extend(i64(opcode["I2F"]))
+        if floating_result:
+            convert_value(ctx, ast_type(ctx, fast), VM_DOUBLE)
         tdest = len(ctx.image.block)
 
         ctx.image.block[fpos:fpos+8] = i64(fdest)
@@ -863,7 +820,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
 
     elif astnode.nodeType == "if":
         cond_ast , branch = astnode.children
-        codegen_action(ctx,cond_ast)
+        codegen_condition(ctx,cond_ast)
         ctx.image.extend(i64(opcode["BZ"]))
         fpos  = ctx.image.extend(i64(0))
         codegen_action(ctx,branch)
@@ -895,12 +852,7 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         codegen_action(ctx,child)
         target_type = astnode.metas[0]
         etype       = unpack_C_Var(ast_type(ctx,child))
-        if type(etype) == C_Basetype and etype.typename in ["float","double"]:
-            if type(target_type) == C_Basetype and target_type.typename not in ["float","double"]:
-                ctx.image.extend(i64(opcode["F2I"]))
-        else:
-            if type(target_type) == C_Basetype and target_type.typename in ["float","double"]:
-                ctx.image.extend(i64(opcode["I2F"]))
+        convert_value(ctx, etype, target_type)
 
     elif astnode.nodeType == "break":
         if ctx.flowCtx is None:
@@ -921,12 +873,12 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
     elif astnode.nodeType == "while":
         cond_ast , loop_ast = astnode.children
         loop_dest = len(ctx.image.block)
-        codegen_action(ctx,cond_ast)
+        codegen_condition(ctx,cond_ast)
 
         # create a new flowContext
         ctx = CodegenContext(
             ctx.image,ctx.literalpool,ctx.allocator,ctx.symtable,
-            FlowContext([],[])
+            FlowContext([],[]),ctx.return_type
         )
 
         ctx.image.extend(i64(opcode["BZ"]))
@@ -949,13 +901,13 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         oldctx = ctx
         ctx = CodegenContext(
             ctx.image,ctx.literalpool,ctx.allocator,ctx.symtable,
-            FlowContext([],[])
+            FlowContext([],[]),ctx.return_type
         )
 
         loop_dest = len(ctx.image.block)
         codegen_action(ctx,loop_ast)
         cond_dest = len(ctx.image.block)
-        codegen_action(oldctx,cond_ast)
+        codegen_condition(oldctx,cond_ast)
         ctx.image.extend(i64(opcode["BNZ"]))
         ctx.image.extend(i64(loop_dest))
         exit_dest = len(ctx.image.block)
@@ -972,12 +924,12 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         oldctx = ctx
         ctx = CodegenContext(
             ctx.image,ctx.literalpool,ctx.allocator,ctx.symtable,
-            FlowContext([],[])
+            FlowContext([],[]),ctx.return_type
         )
 
         codegen_action(oldctx,init_ast)
         loop_dest = len(ctx.image.block)
-        codegen_action(oldctx,cond_ast)
+        codegen_condition(oldctx,cond_ast)
         ctx.image.extend(i64(opcode["BZ"]))
         exit_pos  = ctx.image.extend(i64(0))
         codegen_action(ctx,loop_ast)
@@ -1012,16 +964,10 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         ctx.image.extend(i64(opcode["MSET"]) + i64(opcode["ADJ"]) + i64(3))
 
         def assign_element(var_type : Any,val_ast : ASTNode,var_pos : int):
-            if type(var_type) == C_Basetype and var_type.typename in ["unsigned char","char","signed char"]:
-                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
-                ctx.image.extend(i64(opcode["PSH"]))
-                codegen_action(ctx,val_ast)
-                ctx.image.extend(i64(opcode["SC"]))
-            else:
-                ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
-                ctx.image.extend(i64(opcode["PSH"]))
-                codegen_action(ctx,val_ast)
-                ctx.image.extend(i64(opcode["SI"]))
+            ctx.image.extend(i64(opcode["LEA"]) + i64(var_pos))
+            ctx.image.extend(i64(opcode["PSH"]))
+            codegen_converted(ctx, val_ast, var_type)
+            ctx.image.extend(i64(opcode["SC" if is_byte(var_type) else "SI"]))
 
         def init_assign(var_type: Any,content: list[tuple],var_pos: int):
             if type(var_type) == C_Array:
@@ -1064,13 +1010,9 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         lhs_type = unpack_C_Var(ast_type(ctx,lhs))
         if type(lhs_type) in [C_Array, C_Struct, C_Union]:
             raise ValueError("aggregate assignment is not implemented; use brace initializers or memcpy")
-        rhs_type = unpack_C_Var(ast_type(ctx, rhs))
-        if is_floating(lhs_type) != is_floating(rhs_type):
-            raise ValueError("implicit float/integer conversion is not implemented; use an explicit cast")
-
         solve_addr(ctx,lhs)
         ctx.image.extend(i64(opcode["PSH"]))
-        codegen_action(ctx,rhs)
+        codegen_converted(ctx, rhs, lhs_type)
 
         lhs_type = unpack_C_Var(ast_type(ctx,lhs))
         if lhs_type is None or type(lhs_type) == C_Basetype and lhs_type.typename in ["unsigned char","char","signed char"]:
@@ -1086,7 +1028,9 @@ def codegen_action(ctx : CodegenContext,astnode : ASTNode):
         load_value(ctx, lhs_type)
         # The lvalue address and its value have already been evaluated once.
         cached = ASTNode("cached_value", [], (lhs_type,))
-        codegen_action(ctx, ASTNode(astnode.metas[0], [cached, rhs], ()))
+        expression = ASTNode(astnode.metas[0], [cached, rhs], ())
+        codegen_action(ctx, expression)
+        convert_value(ctx, ast_type(ctx, expression), lhs_type)
         ctx.image.extend(i64(opcode["SC" if is_byte(lhs_type) else "SI"]))
     elif astnode.nodeType == "cached_value":
         return
@@ -1207,6 +1151,30 @@ def poolinit(ctx : CodegenContext ,astnode : ASTNode):
             traverse(child)
     traverse(astnode)
 
+def constant_convert(value, source_type, target_type):
+    """静态初始化使用与运行时相同的数值转换规则，并按 VM 类型宽度存储。"""
+    source_type, target_type = numeric_type(source_type), numeric_type(target_type)
+    if is_floating(target_type) and (is_integer(source_type) or is_floating(source_type)):
+        if is_unsigned(source_type):
+            value = int(value) & ((1 << (8 * type_size(source_type))) - 1)
+        return float(value)
+    if is_integer(target_type):
+        integer = int(value)
+        bits = 8 * type_size(target_type)
+        if is_floating(source_type):
+            lower = 0 if is_unsigned(target_type) else -(1 << (bits - 1))
+            upper = (1 << bits) if is_unsigned(target_type) else (1 << (bits - 1))
+            if not lower <= integer < upper:
+                raise ValueError("floating-point constant is outside the target integer range")
+        integer &= (1 << bits) - 1
+        if not is_unsigned(target_type) and integer >= (1 << (bits - 1)):
+            integer -= 1 << bits
+        return integer
+    if is_floating(source_type) != is_floating(target_type) and target_type != VM_VOID:
+        raise ValueError("floating-point conversion requires an integer or floating-point type")
+    return value
+
+
 def constant_value(ctx, node):
     if node.nodeType == "sizeof":
         var_type = node.metas[0] if node.metas else unpack_C_Var(ast_type(ctx, node.children[0]))
@@ -1225,19 +1193,44 @@ def constant_value(ctx, node):
         return -constant_value(ctx, node.children[0])
     if node.nodeType == "bitnot":
         return ~constant_value(ctx, node.children[0])
-    if node.nodeType in ["add", "sub", "mul", "div", "mod", "shl", "shr", "bitand", "bitor", "bitxor"]:
+    if node.nodeType == "as":
+        child = node.children[0]
+        return constant_convert(constant_value(ctx, child), ast_type(ctx, child), node.metas[0])
+    if node.nodeType == "not":
+        return int(not constant_value(ctx, node.children[0]))
+    if node.nodeType in ["and", "or"]:
+        left = bool(constant_value(ctx, node.children[0]))
+        if node.nodeType == "and" and not left:
+            return 0
+        if node.nodeType == "or" and left:
+            return 1
+        return int(bool(constant_value(ctx, node.children[1])))
+    if node.nodeType == "cond":
+        child = node.children[1 if constant_value(ctx, node.children[0]) else 2]
+        return constant_convert(constant_value(ctx, child), ast_type(ctx, child), ast_type(ctx, node))
+    if node.nodeType in ["add", "sub", "mul", "div", "mod", "shl", "shr", "bitand", "bitor", "bitxor",
+                         "eq", "ne", "lt", "gt", "le", "ge"]:
         left, right = [constant_value(ctx, child) for child in node.children]
+        types = [numeric_type(ast_type(ctx, child)) for child in node.children]
+        floating = any(is_floating(value) for value in types)
+        if floating:
+            left, right = [constant_convert(value, var_type, VM_DOUBLE)
+                           for value, var_type in zip([left, right], types)]
         if node.nodeType in ["div", "mod"]:
             if right == 0:
                 raise ValueError("division by zero in constant initializer")
+            if floating and node.nodeType == "div":
+                return left / right
             quotient = (abs(left) // abs(right)) * (-1 if (left < 0) != (right < 0) else 1)
             if node.nodeType == "mod":
                 return left - quotient * right
-            return left / right if isinstance(left, float) or isinstance(right, float) else quotient
+            return quotient
         import operator
         operation = {"add": operator.add, "sub": operator.sub, "mul": operator.mul,
                      "shl": operator.lshift, "shr": operator.rshift, "bitand": operator.and_,
-                     "bitor": operator.or_, "bitxor": operator.xor}[node.nodeType]
+                     "bitor": operator.or_, "bitxor": operator.xor,
+                     "eq": operator.eq, "ne": operator.ne, "lt": operator.lt,
+                     "gt": operator.gt, "le": operator.le, "ge": operator.ge}[node.nodeType]
         return operation(left, right)
     raise ValueError(f"unsupported static initializer: {node.nodeType}")
 
@@ -1251,13 +1244,13 @@ def static_init(ctx : CodegenContext, astroot : ASTNode):
                 raise ValueError("string initializer exceeds array size")
             ctx.image.block[var_pos:var_pos + len(data)] = data
             return
-        value = constant_value(ctx, literal_ast)
+        value = constant_convert(constant_value(ctx, literal_ast), ast_type(ctx, literal_ast), var_type)
         if is_floating(var_type):
             data = f64(value)
         elif is_byte(var_type):
             data = u8(int(value) & 255)
         else:
-            data = i64(int(value))
+            data = u64(int(value) & ((1 << 64) - 1))
         ctx.image.block[var_pos:var_pos + len(data)] = data
 
     for child in astroot.children:
